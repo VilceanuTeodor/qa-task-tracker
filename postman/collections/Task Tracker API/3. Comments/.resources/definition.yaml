@@ -1,0 +1,9 @@
+$kind: collection
+description: Comments as a regular user.
+auth:
+  - id: 9cd91e58-3053-4bce-a53d-8a9f2f7e461c
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{userToken}}"
+order: 3000

@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/api/tasks/{{taskId}}/history"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200 OK", () => pm.response.to.have.status(200));
+
+      const history = pm.response.json();
+      pm.test("Last entry is 'Comment added'", () => pm.expect(history[history.length - 1].message).to.eql("Comment added"));
+    language: text/javascript
+order: 4000

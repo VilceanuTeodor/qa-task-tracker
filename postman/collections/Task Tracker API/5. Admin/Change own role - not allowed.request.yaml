@@ -1,0 +1,19 @@
+$kind: http-request
+description: Admins can't demote themselves, so there's always at least one admin.
+url: "{{baseUrl}}/api/admin/users/{{adminId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "role": "user"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 422 Unprocessable", () => pm.response.to.have.status(422));
+      pm.test("Error message mentions \"own role\"", () => pm.expect(pm.response.json().detail).to.include("own role"));
+    language: text/javascript
+order: 5000

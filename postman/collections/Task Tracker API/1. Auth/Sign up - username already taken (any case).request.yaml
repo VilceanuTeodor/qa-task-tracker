@@ -1,0 +1,23 @@
+$kind: http-request
+description: Usernames are unique regardless of upper/lower case.
+url: "{{baseUrl}}/api/auth/signup"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "{{duplicateUsername}}",
+      "password": "AnotherPass123"
+    }
+scripts:
+  - type: beforeRequest
+    code: pm.collectionVariables.set("duplicateUsername", pm.collectionVariables.get("username").toUpperCase());
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 422 Unprocessable", () => pm.response.to.have.status(422));
+      pm.test("Error message mentions \"already taken\"", () => pm.expect(pm.response.json().detail).to.include("already taken"));
+    language: text/javascript
+order: 2000

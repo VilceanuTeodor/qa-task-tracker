@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{baseUrl}}/api/tasks"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "Bad status",
+      "status": "Blocked"
+    }
+scripts:
+  - type: afterResponse
+    code: pm.test("Status is 422 Unprocessable", () => pm.response.to.have.status(422));
+    language: text/javascript
+order: 6000

@@ -1,0 +1,32 @@
+$kind: http-request
+description: Creates a fresh regular user for this run. The pre-request script generates a unique username/password.
+url: "{{baseUrl}}/api/auth/signup"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "{{username}}",
+      "password": "{{password}}"
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      // A unique user per run, so the collection can be run again and again.
+      const suffix = Date.now().toString(36);
+      pm.collectionVariables.set("username", "qa_" + suffix);
+      pm.collectionVariables.set("password", "Passw0rd-" + suffix);
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201 Created", () => pm.response.to.have.status(201));
+
+      const user = pm.response.json();
+      pm.test("New accounts get the 'user' role", () => pm.expect(user.role).to.eql("user"));
+      pm.test("Username matches the request", () => pm.expect(user.username).to.eql(pm.collectionVariables.get("username")));
+      pm.test("Password (or its hash) is never returned", () => pm.expect(user).to.not.have.any.keys("password", "password_hash"));
+      pm.collectionVariables.set("userId", user.id);
+    language: text/javascript
+order: 1000

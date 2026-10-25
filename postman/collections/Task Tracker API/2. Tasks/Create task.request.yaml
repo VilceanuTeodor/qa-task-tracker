@@ -1,0 +1,36 @@
+$kind: http-request
+description: The creator is taken from the token, not from the body.
+url: "{{baseUrl}}/api/tasks"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "Login button does nothing",
+      "description": "Steps:\n1. Open /login\n2. Enter valid credentials\n3. Click Sign in\n\nExpected: redirected to the task list\nActual: nothing happens",
+      "assignee": "{{username}}",
+      "status": "To Do"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201 Created", () => pm.response.to.have.status(201));
+
+      const task = pm.response.json();
+      const me = pm.collectionVariables.get("username");
+      pm.test("Creator is the logged-in user", () => pm.expect(task.creator).to.eql(me));
+      pm.test("Assignee and status saved", () => {
+          pm.expect(task.assignee).to.eql(me);
+          pm.expect(task.status).to.eql("To Do");
+      });
+      pm.test("History starts with 'Ticket created on ... by <creator>'", () => {
+          pm.expect(task.history).to.have.lengthOf(1);
+          pm.expect(task.history[0].message).to.match(/^Ticket created on \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} by /);
+          pm.expect(task.history[0].message).to.include(me);
+      });
+      pm.test("No comments yet", () => pm.expect(task.comments).to.be.an("array").that.is.empty);
+      pm.collectionVariables.set("taskId", task.id);
+    language: text/javascript
+order: 2000

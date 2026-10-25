@@ -1,0 +1,20 @@
+$kind: http-request
+description: Sending the current value again must not add a history entry.
+url: "{{baseUrl}}/api/tasks/{{taskId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "In Progress"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200 OK", () => pm.response.to.have.status(200));
+
+      pm.test("No new history entry", () => pm.expect(pm.response.json().history.length).to.eql(Number(pm.collectionVariables.get("historyCount"))));
+    language: text/javascript
+order: 10000

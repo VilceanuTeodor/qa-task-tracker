@@ -1,0 +1,9 @@
+$kind: collection
+description: Requests that must fail, with the right status code.
+auth:
+  - id: dce5c10b-3ff4-49eb-8b29-6071cff1b380
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{userToken}}"
+order: 4000
