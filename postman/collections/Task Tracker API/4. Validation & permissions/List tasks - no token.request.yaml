@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/api/tasks"
+method: GET
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 401 Unauthorized", () => pm.response.to.have.status(401));
+      pm.test("Error message mentions \"Not authenticated\"", () => pm.expect(pm.response.json().detail).to.include("Not authenticated"));
+    language: text/javascript
+order: 1000

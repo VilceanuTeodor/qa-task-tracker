@@ -1,0 +1,23 @@
+$kind: http-request
+description: The author is taken from the token.
+url: "{{baseUrl}}/api/tasks/{{taskId}}/comments"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "body": "Reproduced on Chrome 130 and Edge 130. Console shows no errors."
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201 Created", () => pm.response.to.have.status(201));
+
+      const c = pm.response.json();
+      pm.test("Author is the logged-in user", () => pm.expect(c.author).to.eql(pm.collectionVariables.get("username")));
+      pm.test("Attached to the right task", () => pm.expect(c.task_id).to.eql(Number(pm.collectionVariables.get("taskId"))));
+      pm.collectionVariables.set("commentId", c.id);
+    language: text/javascript
+order: 1000

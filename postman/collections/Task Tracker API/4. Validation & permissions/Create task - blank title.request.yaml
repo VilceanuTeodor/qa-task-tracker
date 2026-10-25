@@ -1,0 +1,18 @@
+$kind: http-request
+url: "{{baseUrl}}/api/tasks"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "   "
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 422 Unprocessable", () => pm.response.to.have.status(422));
+      pm.test("Error message mentions \"Title is required\"", () => pm.expect(pm.response.json().detail).to.include("Title is required"));
+    language: text/javascript
+order: 4000

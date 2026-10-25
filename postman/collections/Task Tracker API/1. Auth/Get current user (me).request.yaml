@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auth/me"
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: "{{userToken}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200 OK", () => pm.response.to.have.status(200));
+
+      const me = pm.response.json();
+      pm.test("Token belongs to the new user", () => pm.expect(me.username).to.eql(pm.collectionVariables.get("username")));
+      pm.test("Has id, username, role, created_at", () => pm.expect(me).to.have.all.keys("id", "username", "role", "created_at"));
+    language: text/javascript
+order: 8000

@@ -1,0 +1,24 @@
+$kind: http-request
+description: An empty assignee means Unassigned.
+url: "{{baseUrl}}/api/tasks/{{taskId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "assignee": ""
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200 OK", () => pm.response.to.have.status(200));
+
+      const task = pm.response.json();
+      const last = task.history[task.history.length - 1];
+      pm.test("Assignee cleared", () => pm.expect(task.assignee).to.eql(""));
+      pm.test("History says 'Unassigned'", () => pm.expect(last.message).to.eql(`Assignee changed from '${pm.collectionVariables.get("username")}' to 'Unassigned'`));
+      pm.collectionVariables.set("historyCount", task.history.length);
+    language: text/javascript
+order: 9000

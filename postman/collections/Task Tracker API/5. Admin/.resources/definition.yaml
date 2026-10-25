@@ -1,0 +1,9 @@
+$kind: collection
+description: Admin-only endpoints. Cleans up the task and user created by this run.
+auth:
+  - id: 2318af69-1612-4dd5-bc8e-f96a997b8393
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{adminToken}}"
+order: 5000

@@ -1,0 +1,29 @@
+$kind: http-request
+url: "{{baseUrl}}/api/tasks/{{taskId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "Login button does nothing on Chrome",
+      "description": "Only reproducible on Chrome. Firefox works."
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200 OK", () => pm.response.to.have.status(200));
+
+      const task = pm.response.json();
+      const messages = task.history.map(h => h.message);
+      pm.test("Title and description updated", () => {
+          pm.expect(task.title).to.eql("Login button does nothing on Chrome");
+          pm.expect(task.description).to.eql("Only reproducible on Chrome. Firefox works.");
+      });
+      pm.test("One history entry per changed field", () => {
+          pm.expect(messages).to.include("Title changed from 'Login button does nothing' to 'Login button does nothing on Chrome'");
+          pm.expect(messages).to.include("Description updated");
+      });
+    language: text/javascript
+order: 8000

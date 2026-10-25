@@ -1,0 +1,1686 @@
+{
+  "info": {
+    "_postman_id": "ba040493-d237-5dc4-b4bf-7c019b00335a",
+    "name": "Task Tracker API",
+    "description": "API collection for the QA task tracker.\n\n**Setup:** import `local.postman_environment.json`, select the *Task Tracker - local* environment and fill in `adminPassword`.\n\n**Run order matters:** the folders build on each other (sign up -> log in -> create a task -> ...). Run the whole collection with the Collection Runner, or send requests top to bottom.\n\nTokens and ids are saved into collection variables by the test scripts, so you never copy them by hand. Each run creates its own user and cleans up after itself.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Auth",
+      "description": "Sign up and log in. Saves {{userToken}} and {{adminToken}}.",
+      "item": [
+        {
+          "name": "Sign up a new user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/signup",
+            "description": "Creates a fresh regular user for this run. The pre-request script generates a unique username/password.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// A unique user per run, so the collection can be run again and again.",
+                  "const suffix = Date.now().toString(36);",
+                  "pm.collectionVariables.set(\"username\", \"qa_\" + suffix);",
+                  "pm.collectionVariables.set(\"password\", \"Passw0rd-\" + suffix);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201 Created\", () => pm.response.to.have.status(201));",
+                  "",
+                  "const user = pm.response.json();",
+                  "pm.test(\"New accounts get the 'user' role\", () => pm.expect(user.role).to.eql(\"user\"));",
+                  "pm.test(\"Username matches the request\", () => pm.expect(user.username).to.eql(pm.collectionVariables.get(\"username\")));",
+                  "pm.test(\"Password (or its hash) is never returned\", () => pm.expect(user).to.not.have.any.keys(\"password\", \"password_hash\"));",
+                  "pm.collectionVariables.set(\"userId\", user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign up - username already taken (any case)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/signup",
+            "description": "Usernames are unique regardless of upper/lower case.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{duplicateUsername}}\",\n  \"password\": \"AnotherPass123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"duplicateUsername\", pm.collectionVariables.get(\"username\").toUpperCase());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Error message mentions \\\"already taken\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"already taken\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign up - password too short",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/signup",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"qa_short_{{$timestamp}}\",\n  \"password\": \"short\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Error message mentions \\\"at least 8\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"at least 8\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign up - invalid username",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/signup",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"has spaces!\",\n  \"password\": \"LongEnough123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Error message mentions \\\"Username must be\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"Username must be\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Log in - wrong password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"definitely-wrong\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401 Unauthorized\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Error message mentions \\\"Invalid username or password\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"Invalid username or password\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Log in as the new user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Saves the token as {{userToken}}; the Tasks and Comments folders use it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const res = pm.response.json();",
+                  "pm.test(\"Returns a bearer token\", () => {",
+                  "    pm.expect(res.access_token).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(res.token_type).to.eql(\"bearer\");",
+                  "});",
+                  "pm.test(\"Logged in as the right user\", () => pm.expect(res.user.username).to.eql(pm.collectionVariables.get(\"username\")));",
+                  "pm.collectionVariables.set(\"userToken\", res.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Log in as admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Uses adminUsername/adminPassword from the environment. Saves the token as {{adminToken}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const res = pm.response.json();",
+                  "pm.test(\"Account has the admin role\", () => pm.expect(res.user.role).to.eql(\"admin\"));",
+                  "pm.collectionVariables.set(\"adminToken\", res.access_token);",
+                  "pm.collectionVariables.set(\"adminId\", res.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get current user (me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const me = pm.response.json();",
+                  "pm.test(\"Token belongs to the new user\", () => pm.expect(me.username).to.eql(pm.collectionVariables.get(\"username\")));",
+                  "pm.test(\"Has id, username, role, created_at\", () => pm.expect(me).to.have.all.keys(\"id\", \"username\", \"role\", \"created_at\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "noauth"
+      }
+    },
+    {
+      "name": "2. Tasks",
+      "description": "Task CRUD as a regular user.",
+      "item": [
+        {
+          "name": "List users (for picking an assignee)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/users",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const users = pm.response.json();",
+                  "pm.test(\"New user is in the list\", () => pm.expect(users.map(u => u.username)).to.include(pm.collectionVariables.get(\"username\")));",
+                  "pm.test(\"Regular users don't see roles\", () => pm.expect(users[0]).to.not.have.property(\"role\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks",
+            "description": "The creator is taken from the token, not from the body.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Login button does nothing\",\n  \"description\": \"Steps:\\n1. Open /login\\n2. Enter valid credentials\\n3. Click Sign in\\n\\nExpected: redirected to the task list\\nActual: nothing happens\",\n  \"assignee\": \"{{username}}\",\n  \"status\": \"To Do\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201 Created\", () => pm.response.to.have.status(201));",
+                  "",
+                  "const task = pm.response.json();",
+                  "const me = pm.collectionVariables.get(\"username\");",
+                  "pm.test(\"Creator is the logged-in user\", () => pm.expect(task.creator).to.eql(me));",
+                  "pm.test(\"Assignee and status saved\", () => {",
+                  "    pm.expect(task.assignee).to.eql(me);",
+                  "    pm.expect(task.status).to.eql(\"To Do\");",
+                  "});",
+                  "pm.test(\"History starts with 'Ticket created on ... by <creator>'\", () => {",
+                  "    pm.expect(task.history).to.have.lengthOf(1);",
+                  "    pm.expect(task.history[0].message).to.match(/^Ticket created on \\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} by /);",
+                  "    pm.expect(task.history[0].message).to.include(me);",
+                  "});",
+                  "pm.test(\"No comments yet\", () => pm.expect(task.comments).to.be.an(\"array\").that.is.empty);",
+                  "pm.collectionVariables.set(\"taskId\", task.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const tasks = pm.response.json();",
+                  "pm.test(\"Returns an array\", () => pm.expect(tasks).to.be.an(\"array\"));",
+                  "pm.test(\"Contains the new task\", () => pm.expect(tasks.map(t => t.id)).to.include(Number(pm.collectionVariables.get(\"taskId\"))));",
+                  "pm.test(\"Newest first\", () => {",
+                  "    const ids = tasks.map(t => t.id);",
+                  "    pm.expect(ids).to.eql([...ids].sort((a, b) => b - a));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List tasks - filter by status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks?status=To%20Do",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const tasks = pm.response.json();",
+                  "pm.test(\"Every task has status 'To Do'\", () => tasks.forEach(t => pm.expect(t.status).to.eql(\"To Do\")));",
+                  "pm.test(\"Contains the new task\", () => pm.expect(tasks.map(t => t.id)).to.include(Number(pm.collectionVariables.get(\"taskId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List tasks - filter by assignee",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks?assignee={{username}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const tasks = pm.response.json();",
+                  "const me = pm.collectionVariables.get(\"username\");",
+                  "pm.test(\"Every task is assigned to the user\", () => tasks.forEach(t => pm.expect(t.assignee).to.include(me)));",
+                  "pm.test(\"At least one result\", () => pm.expect(tasks.length).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get task",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const task = pm.response.json();",
+                  "pm.test(\"Correct task returned\", () => pm.expect(task.id).to.eql(Number(pm.collectionVariables.get(\"taskId\"))));",
+                  "pm.test(\"Has all task fields plus comments and history\", () => pm.expect(task).to.have.all.keys(",
+                  "    \"id\", \"title\", \"description\", \"status\", \"creator\", \"assignee\", \"created_at\", \"updated_at\", \"comments\", \"history\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update task - change status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}",
+            "description": "PATCH only changes the fields you send.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"In Progress\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const task = pm.response.json();",
+                  "const last = task.history[task.history.length - 1];",
+                  "pm.test(\"Status updated\", () => pm.expect(task.status).to.eql(\"In Progress\"));",
+                  "pm.test(\"Title untouched\", () => pm.expect(task.title).to.eql(\"Login button does nothing\"));",
+                  "pm.test(\"History records the change\", () => pm.expect(last.message).to.eql(\"Status changed from 'To Do' to 'In Progress'\"));",
+                  "pm.test(\"History records who made it\", () => pm.expect(last.actor).to.eql(pm.collectionVariables.get(\"username\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update task - edit title and description",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Login button does nothing on Chrome\",\n  \"description\": \"Only reproducible on Chrome. Firefox works.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const task = pm.response.json();",
+                  "const messages = task.history.map(h => h.message);",
+                  "pm.test(\"Title and description updated\", () => {",
+                  "    pm.expect(task.title).to.eql(\"Login button does nothing on Chrome\");",
+                  "    pm.expect(task.description).to.eql(\"Only reproducible on Chrome. Firefox works.\");",
+                  "});",
+                  "pm.test(\"One history entry per changed field\", () => {",
+                  "    pm.expect(messages).to.include(\"Title changed from 'Login button does nothing' to 'Login button does nothing on Chrome'\");",
+                  "    pm.expect(messages).to.include(\"Description updated\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update task - unassign",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}",
+            "description": "An empty assignee means Unassigned.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignee\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const task = pm.response.json();",
+                  "const last = task.history[task.history.length - 1];",
+                  "pm.test(\"Assignee cleared\", () => pm.expect(task.assignee).to.eql(\"\"));",
+                  "pm.test(\"History says 'Unassigned'\", () => pm.expect(last.message).to.eql(`Assignee changed from '${pm.collectionVariables.get(\"username\")}' to 'Unassigned'`));",
+                  "pm.collectionVariables.set(\"historyCount\", task.history.length);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update task - nothing actually changes",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}",
+            "description": "Sending the current value again must not add a history entry.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"In Progress\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"No new history entry\", () => pm.expect(pm.response.json().history.length).to.eql(Number(pm.collectionVariables.get(\"historyCount\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get task history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}/history",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const history = pm.response.json();",
+                  "pm.test(\"Oldest entry is the creation entry\", () => pm.expect(history[0].message).to.match(/^Ticket created on /));",
+                  "pm.test(\"All changes so far are listed\", () => pm.expect(history.length).to.eql(Number(pm.collectionVariables.get(\"historyCount\"))));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{userToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "3. Comments",
+      "description": "Comments as a regular user.",
+      "item": [
+        {
+          "name": "Add comment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}/comments",
+            "description": "The author is taken from the token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"Reproduced on Chrome 130 and Edge 130. Console shows no errors.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201 Created\", () => pm.response.to.have.status(201));",
+                  "",
+                  "const c = pm.response.json();",
+                  "pm.test(\"Author is the logged-in user\", () => pm.expect(c.author).to.eql(pm.collectionVariables.get(\"username\")));",
+                  "pm.test(\"Attached to the right task\", () => pm.expect(c.task_id).to.eql(Number(pm.collectionVariables.get(\"taskId\"))));",
+                  "pm.collectionVariables.set(\"commentId\", c.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List comments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}/comments",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const comments = pm.response.json();",
+                  "pm.test(\"Contains the new comment\", () => pm.expect(comments.map(c => c.id)).to.include(Number(pm.collectionVariables.get(\"commentId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add comment - empty body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}/comments",
+            "description": "Whitespace-only comments are rejected.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"   \"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Error message mentions \\\"Comment is required\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"Comment is required\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "History shows the comment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}/history",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const history = pm.response.json();",
+                  "pm.test(\"Last entry is 'Comment added'\", () => pm.expect(history[history.length - 1].message).to.eql(\"Comment added\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{userToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "4. Validation & permissions",
+      "description": "Requests that must fail, with the right status code.",
+      "item": [
+        {
+          "name": "List tasks - no token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401 Unauthorized\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Error message mentions \\\"Not authenticated\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"Not authenticated\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List tasks - invalid token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "not-a-real-token",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401 Unauthorized\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create task - missing title",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks",
+            "description": "Missing required fields are rejected by request validation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"No title field at all\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "",
+                  "pm.test(\"Points at the missing 'title' field\", () => pm.expect(JSON.stringify(pm.response.json().detail)).to.include(\"title\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create task - blank title",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"   \"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Error message mentions \\\"Title is required\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"Title is required\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create task - title too long",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks",
+            "description": "Titles are limited to 200 characters.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{longTitle}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"longTitle\", \"x\".repeat(201));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Error message mentions \\\"at most 200\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"at most 200\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create task - invalid status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Bad status\",\n  \"status\": \"Blocked\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422 Unprocessable\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create task - unknown assignee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Ghost assignee\",\n  \"assignee\": \"no_such_user_123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Error message mentions \\\"not a registered user\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"not a registered user\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get task - does not exist",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks/999999",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404 Not Found\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Error message mentions \\\"not found\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"not found\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update task - does not exist",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/tasks/999999",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Done\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404 Not Found\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete task - as a regular user",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}",
+            "description": "Only admins can delete tasks."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403 Forbidden\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Error message mentions \\\"Admin access required\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"Admin access required\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin stats - as a regular user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/stats",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403 Forbidden\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin user list - as a regular user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/users",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403 Forbidden\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{userToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "5. Admin",
+      "description": "Admin-only endpoints. Cleans up the task and user created by this run.",
+      "item": [
+        {
+          "name": "Get stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/stats",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const s = pm.response.json();",
+                  "pm.test(\"Counts every status\", () => pm.expect(s.tasks_by_status).to.have.all.keys(\"To Do\", \"In Progress\", \"In Review\", \"Done\"));",
+                  "pm.test(\"Per-status counts add up to the total\", () => pm.expect(Object.values(s.tasks_by_status).reduce((a, b) => a + b, 0)).to.eql(s.total_tasks));",
+                  "pm.test(\"At least the admin and the new user exist\", () => pm.expect(s.total_users).to.be.at.least(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List all users (with roles)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/users",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const users = pm.response.json();",
+                  "const created = users.find(u => u.id === Number(pm.collectionVariables.get(\"userId\")));",
+                  "pm.test(\"New user is listed as a regular user\", () => pm.expect(created.role).to.eql(\"user\"));",
+                  "pm.test(\"No password hashes\", () => users.forEach(u => pm.expect(u).to.not.have.property(\"password_hash\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Promote user to admin",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/admin/users/{{userId}}",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Role is now admin\", () => pm.expect(pm.response.json().role).to.eql(\"admin\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Demote user back to user",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/admin/users/{{userId}}",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"user\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Role is user again\", () => pm.expect(pm.response.json().role).to.eql(\"user\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change own role - not allowed",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/admin/users/{{adminId}}",
+            "description": "Admins can't demote themselves, so there's always at least one admin.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"user\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Error message mentions \\\"own role\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"own role\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Set an invalid role",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/admin/users/{{userId}}",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"superuser\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422 Unprocessable\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete own account - not allowed",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/users/{{adminId}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Error message mentions \\\"own account\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"own account\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete task",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204 No Content\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get deleted task",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404 Not Found\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete task again",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/tasks/{{taskId}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404 Not Found\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete user",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/users/{{userId}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204 No Content\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted user's token no longer works",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401 Unauthorized\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete user - does not exist",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/users/999999",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404 Not Found\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{adminToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "6. Log out",
+      "description": "",
+      "item": [
+        {
+          "name": "Log out",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/logout",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204 No Content\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token rejected after logout",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401 Unauthorized\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "username",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "duplicateUsername",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "userToken",
+      "value": ""
+    },
+    {
+      "key": "adminId",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "taskId",
+      "value": ""
+    },
+    {
+      "key": "commentId",
+      "value": ""
+    },
+    {
+      "key": "historyCount",
+      "value": ""
+    },
+    {
+      "key": "longTitle",
+      "value": ""
+    }
+  ]
+}

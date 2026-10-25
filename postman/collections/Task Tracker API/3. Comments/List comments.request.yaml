@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/api/tasks/{{taskId}}/comments"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200 OK", () => pm.response.to.have.status(200));
+
+      const comments = pm.response.json();
+      pm.test("Contains the new comment", () => pm.expect(comments.map(c => c.id)).to.include(Number(pm.collectionVariables.get("commentId"))));
+    language: text/javascript
+order: 2000

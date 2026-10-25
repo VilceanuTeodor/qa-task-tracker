@@ -1,0 +1,22 @@
+$kind: http-request
+description: Titles are limited to 200 characters.
+url: "{{baseUrl}}/api/tasks"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "{{longTitle}}"
+    }
+scripts:
+  - type: beforeRequest
+    code: pm.collectionVariables.set("longTitle", "x".repeat(201));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 422 Unprocessable", () => pm.response.to.have.status(422));
+      pm.test("Error message mentions \"at most 200\"", () => pm.expect(pm.response.json().detail).to.include("at most 200"));
+    language: text/javascript
+order: 5000

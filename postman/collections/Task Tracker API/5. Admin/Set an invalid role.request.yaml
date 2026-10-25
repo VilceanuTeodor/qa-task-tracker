@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{baseUrl}}/api/admin/users/{{userId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "role": "superuser"
+    }
+scripts:
+  - type: afterResponse
+    code: pm.test("Status is 422 Unprocessable", () => pm.response.to.have.status(422));
+    language: text/javascript
+order: 6000
