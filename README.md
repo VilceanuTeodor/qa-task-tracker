@@ -67,6 +67,21 @@ Get a token from `POST /api/auth/login`; in Swagger (`/docs`) paste it into the 
 
 Statuses: `To Do`, `In Progress`, `In Review`, `Done`.
 
+## Automated tests
+
+API tests (`tests/api/`) use pytest + requests; UI tests (`tests/ui/`) use Playwright to drive a real Chromium browser.
+Each run starts its own copy of the app with an empty temporary database, so your `tracker.db` is never touched.
+
+```powershell
+pip install -r requirements-dev.txt
+python -m playwright install chromium
+
+python -m pytest                    # everything, browser hidden (headless)
+python -m pytest tests/api          # API tests only
+python -m pytest tests/ui --headed  # watch the browser, with a short pause after each step
+python -m pytest -k comment         # only tests with "comment" in their name
+```
+
 ## API collection (Postman)
 
 The `postman/` folder has a ready-made collection of 50 requests with test assertions, covering every
