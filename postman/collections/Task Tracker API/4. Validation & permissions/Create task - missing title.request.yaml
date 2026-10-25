@@ -1,0 +1,20 @@
+$kind: http-request
+description: Missing required fields are rejected by request validation.
+url: "{{baseUrl}}/api/tasks"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "description": "No title field at all"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 422 Unprocessable", () => pm.response.to.have.status(422));
+
+      pm.test("Points at the missing 'title' field", () => pm.expect(JSON.stringify(pm.response.json().detail)).to.include("title"));
+    language: text/javascript
+order: 3000

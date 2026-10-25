@@ -1,0 +1,9 @@
+$kind: collection
+description: Task CRUD as a regular user.
+auth:
+  - id: ac50bc10-2537-4ac1-8977-e0a1ada5344b
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{userToken}}"
+order: 2000

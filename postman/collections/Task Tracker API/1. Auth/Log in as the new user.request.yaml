@@ -1,0 +1,27 @@
+$kind: http-request
+description: Saves the token as {{userToken}}; the Tasks and Comments folders use it.
+url: "{{baseUrl}}/api/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "{{username}}",
+      "password": "{{password}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200 OK", () => pm.response.to.have.status(200));
+
+      const res = pm.response.json();
+      pm.test("Returns a bearer token", () => {
+          pm.expect(res.access_token).to.be.a("string").and.not.empty;
+          pm.expect(res.token_type).to.eql("bearer");
+      });
+      pm.test("Logged in as the right user", () => pm.expect(res.user.username).to.eql(pm.collectionVariables.get("username")));
+      pm.collectionVariables.set("userToken", res.access_token);
+    language: text/javascript
+order: 6000

@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{baseUrl}}/api/tasks/{{taskId}}/history"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200 OK", () => pm.response.to.have.status(200));
+
+      const history = pm.response.json();
+      pm.test("Oldest entry is the creation entry", () => pm.expect(history[0].message).to.match(/^Ticket created on /));
+      pm.test("All changes so far are listed", () => pm.expect(history.length).to.eql(Number(pm.collectionVariables.get("historyCount"))));
+    language: text/javascript
+order: 11000
