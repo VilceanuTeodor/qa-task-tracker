@@ -1,3 +1,6 @@
+# Postman request "Get current user (me)" - GET /api/auth/me
+# Sends the token saved by "Log in as the new user" and checks that it returns
+# that user's own account (id, username, role, created_at).
 $kind: http-request
 url: "{{baseUrl}}/api/auth/me"
 method: GET
