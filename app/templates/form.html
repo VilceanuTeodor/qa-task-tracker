@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{% if editing %}Edit #{{ task.id }}{% else %}New task{% endif %}{% endblock %}
+{% block content %}
+<h1>{% if editing %}Edit task #{{ task.id }}{% else %}New task{% endif %}</h1>
+
+{% if error %}<p class="error" data-testid="form-error">{{ error }}</p>{% endif %}
+
+<form method="post" action="{% if editing %}/tasks/{{ task.id }}/edit{% else %}/tasks{% endif %}" class="card form" data-testid="task-form">
+  <label>Title
+    <input name="title" value="{{ form.title or '' }}" required maxlength="200" data-testid="input-title">
+  </label>
+
+  <label>Description
+    <textarea name="description" rows="6" data-testid="input-description">{{ form.description or '' }}</textarea>
+  </label>
+
+  <div class="row">
+    <label>Status
+      <select name="status" data-testid="input-status">
+        {% for s in statuses %}
+        <option value="{{ s }}" {% if s == (form.status or 'To Do') %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Assignee
+      <select name="assignee" data-testid="input-assignee">
+        <option value="">Unassigned</option>
+        {% if form.assignee and form.assignee not in usernames %}
+        <option value="{{ form.assignee }}" selected>{{ form.assignee }} (no longer a user)</option>
+        {% endif %}
+        {% for name in usernames %}
+        <option value="{{ name }}" {% if name == form.assignee %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+
+  <div class="form-actions">
+    <button class="button" data-testid="submit-task">{% if editing %}Save changes{% else %}Create task{% endif %}</button>
+    <a href="{% if editing %}/tasks/{{ task.id }}{% else %}/{% endif %}" class="nav-link" data-testid="cancel">Cancel</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Tasks{% endblock %} · Task Tracker</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand" data-testid="nav-home">Task Tracker</a>
+    <nav>
+      <a href="/docs" class="nav-link" data-testid="nav-api-docs">API docs</a>
+      {% if user %}
+        {% if user.role == "admin" %}<a href="/admin" class="nav-link" data-testid="nav-admin">Admin</a>{% endif %}
+        <a href="/tasks/new" class="button" data-testid="nav-new-task">+ New task</a>
+        <span class="user-chip" data-testid="nav-username">{{ user.username }}{% if user.role == "admin" %} <span class="badge role-admin">admin</span>{% endif %}</span>
+        <form method="post" action="/logout" class="inline">
+          <button class="link-button" data-testid="nav-logout">Sign out</button>
+        </form>
+      {% else %}
+        <a href="/login" class="nav-link" data-testid="nav-login">Sign in</a>
+        <a href="/signup" class="button" data-testid="nav-signup">Sign up</a>
+      {% endif %}
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
