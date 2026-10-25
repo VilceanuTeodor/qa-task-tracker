@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 tracker.db
+.pytest_cache/
+test-results/
 
 # Personal notes, not part of the app
 tasks.txt
