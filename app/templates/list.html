@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Tasks{% endblock %}
+{% block content %}
+<h1>Tasks</h1>
+
+<form method="get" action="/" class="filters" data-testid="filter-form">
+  <label>Status
+    <select name="status" data-testid="filter-status">
+      <option value="">All</option>
+      {% for s in statuses %}
+      <option value="{{ s }}" {% if s == status_filter %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Assignee
+    <input name="assignee" value="{{ assignee_filter }}" placeholder="Any" data-testid="filter-assignee">
+  </label>
+  <button class="button secondary" data-testid="filter-submit">Filter</button>
+  {% if status_filter or assignee_filter %}<a href="/" class="nav-link" data-testid="filter-clear">Clear</a>{% endif %}
+</form>
+
+{% if tasks %}
+<table class="task-table" data-testid="task-table">
+  <thead>
+    <tr><th>ID</th><th>Title</th><th>Status</th><th>Assignee</th><th>Creator</th><th>Updated</th></tr>
+  </thead>
+  <tbody>
+    {% for task in tasks %}
+    <tr data-testid="task-row-{{ task.id }}">
+      <td class="muted">#{{ task.id }}</td>
+      <td><a href="/tasks/{{ task.id }}" data-testid="task-link-{{ task.id }}">{{ task.title }}</a></td>
+      <td><span class="badge status-{{ task.status|lower|replace(' ', '-') }}">{{ task.status }}</span></td>
+      <td>{{ task.assignee or "Unassigned" }}</td>
+      <td>{{ task.creator }}</td>
+      <td class="muted">{{ task.updated_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty" data-testid="empty-state">
+  {% if status_filter or assignee_filter %}No tasks match these filters.{% else %}No tasks yet. <a href="/tasks/new">Create the first one.</a>{% endif %}
+</p>
+{% endif %}
+{% endblock %}

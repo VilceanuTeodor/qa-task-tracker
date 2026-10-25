@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Sign up{% endblock %}
+{% block content %}
+<div class="auth-box">
+  <h1>Create an account</h1>
+  {% if error %}<p class="error" data-testid="signup-error">{{ error }}</p>{% endif %}
+  <form method="post" action="/signup" class="card form" data-testid="signup-form">
+    <label>Username
+      <input name="username" value="{{ form.username or '' }}" required minlength="3" maxlength="30"
+             pattern="[A-Za-z0-9_.\-]+" autocomplete="username" autofocus data-testid="input-username">
+      <span class="hint">3-30 characters: letters, digits, '.', '_' or '-'</span>
+    </label>
+    <label>Password
+      <input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password" data-testid="input-password">
+      <span class="hint">At least 8 characters</span>
+    </label>
+    <label>Confirm password
+      <input name="confirm_password" type="password" required autocomplete="new-password" data-testid="input-confirm-password">
+    </label>
+    <button class="button" data-testid="submit-signup">Sign up</button>
+  </form>
+  <p class="muted">Already have an account? <a href="/login" data-testid="link-login">Sign in</a></p>
+</div>
+{% endblock %}

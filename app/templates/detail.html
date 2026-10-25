@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}#{{ task.id }} {{ task.title }}{% endblock %}
+{% block content %}
+<div class="detail-header">
+  <h1 data-testid="task-title"><span class="muted">#{{ task.id }}</span> {{ task.title }}</h1>
+  <div class="actions">
+    <a class="button secondary" href="/tasks/{{ task.id }}/edit" data-testid="edit-task">Edit</a>
+    {% if user.role == "admin" %}
+    <form method="post" action="/tasks/{{ task.id }}/delete"
+          onsubmit="return confirm('Delete task #{{ task.id }}? This cannot be undone.');">
+      <button class="button danger" data-testid="delete-task">Delete</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid">
+  <section class="card">
+    <h2>Description</h2>
+    {% if task.description %}
+    <p class="description" data-testid="task-description">{{ task.description }}</p>
+    {% else %}
+    <p class="muted" data-testid="task-description">No description.</p>
+    {% endif %}
+  </section>
+
+  <aside class="card">
+    <dl class="meta">
+      <dt>Status</dt>
+      <dd><span class="badge status-{{ task.status|lower|replace(' ', '-') }}" data-testid="task-status">{{ task.status }}</span></dd>
+      <dt>Assignee</dt><dd data-testid="task-assignee">{{ task.assignee or "Unassigned" }}</dd>
+      <dt>Creator</dt><dd data-testid="task-creator">{{ task.creator }}</dd>
+      <dt>Created</dt><dd data-testid="task-created">{{ task.created_at }}</dd>
+      <dt>Updated</dt><dd data-testid="task-updated">{{ task.updated_at }}</dd>
+    </dl>
+  </aside>
+</div>
+
+<section class="card" id="comments">
+  <h2>Comments ({{ task.comments|length }})</h2>
+  {% for c in task.comments %}
+  <article class="comment" data-testid="comment-{{ c.id }}">
+    <div class="comment-meta"><strong>{{ c.author }}</strong> <span class="muted">{{ c.created_at }}</span></div>
+    <p class="description">{{ c.body }}</p>
+  </article>
+  {% else %}
+  <p class="muted" data-testid="no-comments">No comments yet.</p>
+  {% endfor %}
+
+  {% if comment_error %}<p class="error" data-testid="comment-error">{{ comment_error }}</p>{% endif %}
+  <form method="post" action="/tasks/{{ task.id }}/comments" class="form comment-form" data-testid="comment-form">
+    <label>Comment as {{ user.username }}
+      <textarea name="body" rows="3" required data-testid="input-comment-body">{{ comment_form.body or '' }}</textarea>
+    </label>
+    <div><button class="button" data-testid="submit-comment">Add comment</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>History</h2>
+  <ol class="history" data-testid="history">
+    {% for h in task.history %}
+    <li data-testid="history-{{ h.id }}">
+      <span>{{ h.message }}</span>
+      {% if not loop.first %}<span class="muted"> · {{ h.actor }} · {{ h.created_at }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endblock %}

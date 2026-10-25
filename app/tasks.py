@@ -1,0 +1,171 @@
+"""Task storage and business rules, shared by the web UI and the JSON API."""
+from datetime import datetime
+from typing import Literal, get_args
+
+from app import users
+from app.db import get_conn
+from app.errors import ValidationError
+
+Status = Literal["To Do", "In Progress", "In Review", "Done"]
+STATUSES = get_args(Status)
+
+TITLE_MAX = 200
+
+
+class TaskNotFound(Exception):
+    def __init__(self, task_id):
+        super().__init__(f"Task {task_id} not found")
+
+
+def _now():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _clean(value, field, *, required=False, max_len=None):
+    value = (value or "").strip()
+    if required and not value:
+        raise ValidationError(f"{field} is required")
+    if max_len and len(value) > max_len:
+        raise ValidationError(f"{field} must be at most {max_len} characters")
+    return value
+
+
+def _check_status(status):
+    if status not in STATUSES:
+        raise ValidationError(f"Status must be one of: {', '.join(STATUSES)}")
+    return status
+
+
+def _check_assignee(assignee):
+    """Blank means unassigned; otherwise it must be a registered user (stored with their exact username)."""
+    if not assignee:
+        return ""
+    user = users.find_user(assignee)
+    if user is None:
+        raise ValidationError(f"Assignee '{assignee}' is not a registered user")
+    return user["username"]
+
+
+def _log(conn, task_id, actor, message, at):
+    conn.execute(
+        "INSERT INTO history (task_id, actor, message, created_at) VALUES (?, ?, ?, ?)",
+        (task_id, actor, message, at),
+    )
+
+
+def _describe_change(field, old, new):
+    if field == "description":
+        return "Description updated"
+    if field == "assignee":
+        old, new = old or "Unassigned", new or "Unassigned"
+    return f"{field.capitalize()} changed from '{old}' to '{new}'"
+
+
+def create_task(title, creator, description="", assignee="", status="To Do"):
+    title = _clean(title, "Title", required=True, max_len=TITLE_MAX)
+    creator = _clean(creator, "Creator", required=True)
+    assignee = _check_assignee(_clean(assignee, "Assignee"))
+    description = _clean(description, "Description")
+    status = _check_status(status)
+    now = _now()
+    with get_conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO tasks (title, description, status, creator, assignee, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (title, description, status, creator, assignee, now, now),
+        )
+        task_id = cur.lastrowid
+        _log(conn, task_id, creator, f"Ticket created on {now} by {creator}", now)
+    return get_task(task_id)
+
+
+def list_tasks(status=None, assignee=None):
+    query = "SELECT * FROM tasks"
+    clauses, params = [], []
+    if status:
+        clauses.append("status = ?")
+        params.append(status)
+    if assignee:
+        clauses.append("assignee LIKE ?")
+        params.append(f"%{assignee.strip()}%")
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += " ORDER BY id DESC"
+    with get_conn() as conn:
+        return [dict(row) for row in conn.execute(query, params)]
+
+
+def get_task(task_id):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        if row is None:
+            raise TaskNotFound(task_id)
+        task = dict(row)
+        task["comments"] = [
+            dict(r) for r in conn.execute("SELECT * FROM comments WHERE task_id = ? ORDER BY id", (task_id,))
+        ]
+        task["history"] = [
+            dict(r) for r in conn.execute("SELECT * FROM history WHERE task_id = ? ORDER BY id", (task_id,))
+        ]
+    return task
+
+
+def update_task(task_id, actor, title=None, description=None, status=None, assignee=None):
+    """Apply the given changes (None = leave as is) and log one history entry per changed field."""
+    current = get_task(task_id)
+
+    changes = {}
+    if title is not None:
+        changes["title"] = _clean(title, "Title", required=True, max_len=TITLE_MAX)
+    if description is not None:
+        changes["description"] = _clean(description, "Description")
+    if status is not None:
+        changes["status"] = _check_status(status)
+    if assignee is not None:
+        assignee = _clean(assignee, "Assignee")
+        # Only check new values, so tasks still assigned to a deleted user can be edited.
+        changes["assignee"] = _check_assignee(assignee) if assignee != current["assignee"] else assignee
+    changes = {field: value for field, value in changes.items() if value != current[field]}
+    if not changes:
+        return current
+
+    now = _now()
+    with get_conn() as conn:
+        # Column names come from the fixed keys above, never from user input.
+        assignments = ", ".join(f"{field} = ?" for field in changes)
+        conn.execute(
+            f"UPDATE tasks SET {assignments}, updated_at = ? WHERE id = ?",
+            (*changes.values(), now, task_id),
+        )
+        for field, new in changes.items():
+            _log(conn, task_id, actor, _describe_change(field, current[field], new), now)
+    return get_task(task_id)
+
+
+def delete_task(task_id):
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        if cur.rowcount == 0:
+            raise TaskNotFound(task_id)
+
+
+def status_counts():
+    with get_conn() as conn:
+        found = dict(conn.execute("SELECT status, COUNT(*) FROM tasks GROUP BY status").fetchall())
+    return {status: found.get(status, 0) for status in STATUSES}
+
+
+def add_comment(task_id, author, body):
+    body = _clean(body, "Comment", required=True)
+    now = _now()
+    with get_conn() as conn:
+        if conn.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone() is None:
+            raise TaskNotFound(task_id)
+        cur = conn.execute(
+            "INSERT INTO comments (task_id, author, body, created_at) VALUES (?, ?, ?, ?)",
+            (task_id, author, body, now),
+        )
+        conn.execute("UPDATE tasks SET updated_at = ? WHERE id = ?", (now, task_id))
+        _log(conn, task_id, author, "Comment added", now)
+        comment = conn.execute("SELECT * FROM comments WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return dict(comment)
