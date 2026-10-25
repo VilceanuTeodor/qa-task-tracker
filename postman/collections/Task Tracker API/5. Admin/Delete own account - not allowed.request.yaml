@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{baseUrl}}/api/admin/users/{{adminId}}"
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 422 Unprocessable", () => pm.response.to.have.status(422));
+      pm.test("Error message mentions \"own account\"", () => pm.expect(pm.response.json().detail).to.include("own account"));
+    language: text/javascript
+order: 7000

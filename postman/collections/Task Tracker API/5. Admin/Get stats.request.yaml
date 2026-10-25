@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{baseUrl}}/api/admin/stats"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200 OK", () => pm.response.to.have.status(200));
+
+      const s = pm.response.json();
+      pm.test("Counts every status", () => pm.expect(s.tasks_by_status).to.have.all.keys("To Do", "In Progress", "In Review", "Done"));
+      pm.test("Per-status counts add up to the total", () => pm.expect(Object.values(s.tasks_by_status).reduce((a, b) => a + b, 0)).to.eql(s.total_tasks));
+      pm.test("At least the admin and the new user exist", () => pm.expect(s.total_users).to.be.at.least(2));
+    language: text/javascript
+order: 1000

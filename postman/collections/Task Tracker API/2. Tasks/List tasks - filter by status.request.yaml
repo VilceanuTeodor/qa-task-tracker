@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{baseUrl}}/api/tasks?status=To%20Do"
+method: GET
+queryParams:
+  status: To%20Do
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200 OK", () => pm.response.to.have.status(200));
+
+      const tasks = pm.response.json();
+      pm.test("Every task has status 'To Do'", () => tasks.forEach(t => pm.expect(t.status).to.eql("To Do")));
+      pm.test("Contains the new task", () => pm.expect(tasks.map(t => t.id)).to.include(Number(pm.collectionVariables.get("taskId"))));
+    language: text/javascript
+order: 4000

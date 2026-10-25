@@ -66,3 +66,21 @@ Get a token from `POST /api/auth/login`; in Swagger (`/docs`) paste it into the 
 | GET | `/api/admin/stats` | Task and user counts (admin) |
 
 Statuses: `To Do`, `In Progress`, `In Review`, `Done`.
+
+## API collection (Postman)
+
+The `postman/` folder has a ready-made collection of 50 requests with test assertions, covering every
+endpoint plus error and permission cases.
+
+1. In Postman, **Import** both files from `postman/`.
+2. Select the **Task Tracker - local** environment (top right) and set `adminPassword` to your admin password.
+3. With the app running, send the requests top to bottom, or run the whole collection with **Run collection**.
+
+The folders build on each other: sign up, then log in, then create a task, and so on. The scripts save tokens and ids
+into variables automatically, and each run creates its own test user and deletes it at the end.
+
+From the command line, with [Newman](https://www.npmjs.com/package/newman):
+
+```
+npx newman run postman/task-tracker.postman_collection.json -e postman/local.postman_environment.json --env-var adminPassword=YOUR_ADMIN_PASSWORD
+```

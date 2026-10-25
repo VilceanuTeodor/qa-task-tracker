@@ -1,0 +1,25 @@
+$kind: http-request
+description: PATCH only changes the fields you send.
+url: "{{baseUrl}}/api/tasks/{{taskId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "In Progress"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200 OK", () => pm.response.to.have.status(200));
+
+      const task = pm.response.json();
+      const last = task.history[task.history.length - 1];
+      pm.test("Status updated", () => pm.expect(task.status).to.eql("In Progress"));
+      pm.test("Title untouched", () => pm.expect(task.title).to.eql("Login button does nothing"));
+      pm.test("History records the change", () => pm.expect(last.message).to.eql("Status changed from 'To Do' to 'In Progress'"));
+      pm.test("History records who made it", () => pm.expect(last.actor).to.eql(pm.collectionVariables.get("username")));
+    language: text/javascript
+order: 7000

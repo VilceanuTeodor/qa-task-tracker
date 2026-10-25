@@ -1,0 +1,7 @@
+$kind: collection
+description: Sign up and log in. Saves {{userToken}} and {{adminToken}}.
+auth:
+  - id: ""
+    type: noauth
+    name: No Auth
+order: 1000

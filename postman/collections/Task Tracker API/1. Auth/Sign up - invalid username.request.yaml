@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auth/signup"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "has spaces!",
+      "password": "LongEnough123"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 422 Unprocessable", () => pm.response.to.have.status(422));
+      pm.test("Error message mentions \"Username must be\"", () => pm.expect(pm.response.json().detail).to.include("Username must be"));
+    language: text/javascript
+order: 4000

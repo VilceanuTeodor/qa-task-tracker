@@ -1,0 +1,57 @@
+$kind: collection
+description: |-
+  API collection for the QA task tracker.
+
+  **Setup:** import `local.postman_environment.json`, select the *Task Tracker - local* environment and fill in `adminPassword`.
+
+  **Run order matters:** the folders build on each other (sign up -> log in -> create a task -> ...). Run the whole collection with the Collection Runner, or send requests top to bottom.
+
+  Tokens and ids are saved into collection variables by the test scripts, so you never copy them by hand. Each run creates its own user and cleans up after itself.
+variables:
+  - key: username
+    value: ""
+    disabled: false
+    secret: false
+  - key: password
+    value: ""
+    disabled: false
+    secret: false
+  - key: duplicateUsername
+    value: ""
+    disabled: false
+    secret: false
+  - key: userId
+    value: ""
+    disabled: false
+    secret: false
+  - key: userToken
+    value: ""
+    disabled: false
+    secret: false
+  - key: adminId
+    value: ""
+    disabled: false
+    secret: false
+  - key: adminToken
+    value: ""
+    disabled: false
+    secret: false
+  - key: taskId
+    value: ""
+    disabled: false
+    secret: false
+  - key: commentId
+    value: ""
+    disabled: false
+    secret: false
+  - key: historyCount
+    value: ""
+    disabled: false
+    secret: false
+  - key: longTitle
+    value: ""
+    disabled: false
+    secret: false
+  - key: auth_secret_0k4s
+    secret: true
+    disabled: false
