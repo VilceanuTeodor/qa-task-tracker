@@ -9,7 +9,39 @@ A basic Jira-like task tracker built with FastAPI and SQLite, made for practicin
 - Admin role: an Admin page (task stats, user management) and the right to delete tasks
 - Web UI plus a JSON API, with interactive Swagger docs at `/docs`
 
-## Run locally
+## Run with Docker
+
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine with the Compose plugin).
+
+```powershell
+docker compose up --build
+```
+
+Then open http://127.0.0.1:8000. On the very first start the admin password is printed in the output
+(find it again later with `docker compose logs app`). To choose it yourself, create a `.env` file next to
+`compose.yaml` (it's git-ignored):
+
+```
+ADMIN_PASSWORD=your-password-here
+```
+
+The app runs in one container (`app`). Its SQLite database is stored in a Docker volume (`tracker-data`, mounted
+at `/data/tracker.db`), so your data survives restarts and rebuilds. It is separate from the `tracker.db` file
+used when you run the app without Docker.
+
+| Command | What it does |
+|---|---|
+| `docker compose up --build` | Build the image and start the app (add `-d` to run it in the background) |
+| `docker compose logs -f app` | Follow the app's logs |
+| `docker compose ps` | Show whether the container is running and healthy |
+| `docker compose down` | Stop and remove the container (data is kept) |
+| `docker compose down -v` | Stop and **delete the database** too (fresh start) |
+| `docker compose cp app:/data/tracker.db ./tracker-docker.db` | Copy the database out, e.g. to open it in DBeaver |
+| `docker compose cp ./tracker.db app:/data/tracker.db` | Replace the container's database with your local one (then `docker compose restart app`) |
+
+Code changes are not picked up live: run `docker compose up --build` again after editing.
+
+## Run locally (without Docker)
 
 Requires Python 3.10+.
 
