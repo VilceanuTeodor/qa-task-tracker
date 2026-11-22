@@ -1,0 +1,27 @@
+# Everything needed to run the Task Tracker: `docker compose up`
+services:
+  app:
+    build: .
+    image: task-tracker
+    ports:
+      # host:container. Bound to 127.0.0.1, so only this machine can reach it.
+      - "127.0.0.1:8000:8000"
+    environment:
+      TRACKER_DB: /data/tracker.db
+      # Optional: put ADMIN_PASSWORD=... in a .env file next to this one (or set it in
+      # your shell) to choose the admin password. Left empty, a random one is printed once.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      # The SQLite database lives in this named volume, not in the container,
+      # so it survives `docker compose down`, rebuilds and restarts.
+      - tracker-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/login', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  tracker-data:
