@@ -27,8 +27,8 @@ def _free_port():
 
 
 @pytest.fixture(scope="session")
-def base_url(tmp_path_factory):
-    """The test app's address. Playwright uses it too, so page.goto("/login") just works."""
+def app_server(tmp_path_factory):
+    """Starts the test app. Gives its address and the file its output (incl. the audit log) goes to."""
     tmp = tmp_path_factory.mktemp("app")
     port = _free_port()
     env = {
@@ -63,10 +63,22 @@ def base_url(tmp_path_factory):
                 raise RuntimeError(f"The app didn't start within 20 seconds, see {log_path}")
             time.sleep(0.2)
 
-        yield url
+        yield SimpleNamespace(url=url, log_path=log_path)
 
         server.terminate()
         server.wait(timeout=10)
+
+
+@pytest.fixture(scope="session")
+def base_url(app_server):
+    """The test app's address. Playwright uses it too, so page.goto("/login") just works."""
+    return app_server.url
+
+
+@pytest.fixture
+def server_log(app_server):
+    """Read the app's output so far, e.g. to check what the audit log recorded."""
+    return lambda: app_server.log_path.read_text(encoding="utf-8", errors="replace")
 
 
 @pytest.fixture

@@ -194,7 +194,7 @@ def edit_task(
 @router.post("/tasks/{task_id}/delete")
 def delete_task(request: Request, task_id: int, user=Depends(require_admin)):
     try:
-        tasks.delete_task(task_id)
+        tasks.delete_task(task_id, deleted_by=user["username"])
     except tasks.TaskNotFound as e:
         return _not_found(request, user, f"{e}.")
     return RedirectResponse("/", status_code=303)

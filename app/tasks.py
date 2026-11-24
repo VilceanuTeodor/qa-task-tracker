@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Literal, get_args
 
 from app import users
+from app.audit import log_event
 from app.db import get_conn
 from app.errors import ValidationError
 
@@ -76,6 +77,7 @@ def create_task(title, creator, description="", assignee="", status="To Do"):
             (title, description, status, creator, assignee, now, now),
         ).fetchone()["id"]
         _log(conn, task_id, creator, f"Ticket created on {now} by {creator}", now)
+    log_event("task_created", creator, task_id=task_id, title=title, status=status, assignee=assignee or "-")
     return get_task(task_id)
 
 
@@ -140,14 +142,18 @@ def update_task(task_id, actor, title=None, description=None, status=None, assig
         )
         for field, new in changes.items():
             _log(conn, task_id, actor, _describe_change(field, current[field], new), now)
+    # Field names only; the old/new values are in the task's own history.
+    log_event("task_updated", actor, task_id=task_id, fields=",".join(changes))
     return get_task(task_id)
 
 
-def delete_task(task_id):
+def delete_task(task_id, deleted_by=None):
     with get_conn() as conn:
-        cur = conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
-        if cur.rowcount == 0:
+        row = conn.execute("DELETE FROM tasks WHERE id = ? RETURNING title", (task_id,)).fetchone()
+        if row is None:
             raise TaskNotFound(task_id)
+    # The task and its history are gone after this, so the log is the only record of who deleted it.
+    log_event("task_deleted", deleted_by, task_id=task_id, title=row["title"])
 
 
 def status_counts():
@@ -169,4 +175,5 @@ def add_comment(task_id, author, body):
         ).fetchone()
         conn.execute("UPDATE tasks SET updated_at = ? WHERE id = ?", (now, task_id))
         _log(conn, task_id, author, "Comment added", now)
+    log_event("comment_added", author, task_id=task_id, comment_id=comment["id"])  # never the comment text
     return dict(comment)

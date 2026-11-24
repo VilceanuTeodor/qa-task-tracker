@@ -91,10 +91,10 @@ def update_task(task_id: int, payload: TaskUpdate, user=Depends(api_user)):
     return _run(tasks.update_task, task_id, user["username"], **payload.model_dump(exclude_unset=True))
 
 
-@router.delete("/tasks/{task_id}", status_code=204, dependencies=[Depends(api_admin)])
-def delete_task(task_id: int):
+@router.delete("/tasks/{task_id}", status_code=204)
+def delete_task(task_id: int, admin=Depends(api_admin)):
     """Admin only."""
-    _run(tasks.delete_task, task_id)
+    _run(tasks.delete_task, task_id, deleted_by=admin["username"])
     return Response(status_code=204)
 
 

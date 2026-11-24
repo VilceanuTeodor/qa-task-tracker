@@ -6,10 +6,12 @@ from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import api, auth, db, monitoring, users, web
+from app import api, audit, auth, db, monitoring, users, web
 
 # Before the app is created, so Sentry can hook into FastAPI and catch every crash.
 monitoring.init_sentry()
+# The app's own log lines (who did what): printed to stdout, so the terminal, Docker and Render show them.
+audit.configure_logging()
 
 
 @asynccontextmanager
