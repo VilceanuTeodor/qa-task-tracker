@@ -30,4 +30,8 @@ EXPOSE 8000
 # 0.0.0.0 = listen on every network interface inside the container, which is
 # needed for Docker's port mapping to reach it. compose.yaml still only
 # publishes the port on this machine's localhost.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# PORT: hosting platforms such as Render say which port to use through this
+# variable; locally it isn't set, so 8000 is used.
+# --forwarded-allow-ips: trust the platform's proxy, which handles HTTPS in
+# front of the app, so the app knows the original request was HTTPS.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --forwarded-allow-ips='*'"]

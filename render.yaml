@@ -1,0 +1,19 @@
+# Render "Blueprint": describes the deployed app so Render can set it up from the repo.
+# Secrets are only NAMED here (sync: false); their values are typed into the
+# Render dashboard and never stored in git.
+services:
+  - type: web
+    name: qa-task-tracker
+    runtime: docker            # build from the Dockerfile
+    plan: free
+    region: frankfurt          # same region as the Neon database (AWS eu-central-1)
+    branch: main
+    autoDeployTrigger: checksPass   # deploy a new commit on main only after the GitHub Actions tests pass
+    healthCheckPath: /login
+    envVars:
+      - key: DATABASE_URL      # Neon connection string (secret)
+        sync: false
+      - key: ADMIN_PASSWORD    # password of the "admin" account (secret)
+        sync: false
+      - key: COOKIE_SECURE     # session cookie only over HTTPS (not a secret)
+        value: "true"
