@@ -145,3 +145,5 @@ form.inline { display: inline; margin: 0; }
   .task-table th:nth-child(5), .task-table td:nth-child(5),
   .task-table th:nth-child(6), .task-table td:nth-child(6) { display: none; }
 }
+
+.ai-suggest { display: flex; align-items: center; gap: 10px; margin: -4px 0 8px; }

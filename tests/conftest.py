@@ -41,6 +41,9 @@ def app_server(tmp_path_factory):
         "DATABASE_URL": os.environ.get("TEST_DATABASE_URL", ""),
         # Test errors (some tests crash the app on purpose) must never reach Sentry.
         "SENTRY_DSN": "",
+        # The test app never calls the real Claude API (no cost, no flaky answers).
+        # AI logic is tested with a fake client in tests/unit; tests/live calls the real API on request.
+        "ANTHROPIC_API_KEY": "",
     }
     log_path = tmp / "server.log"
     with open(log_path, "w") as log:

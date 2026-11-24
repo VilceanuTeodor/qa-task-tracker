@@ -14,6 +14,13 @@
     <textarea name="description" rows="6" data-testid="input-description">{{ form.description or '' }}</textarea>
   </label>
 
+  {% if ai_enabled() %}
+  <div class="ai-suggest">
+    <button type="button" class="button secondary small" data-testid="suggest-title">✨ Suggest title from description</button>
+    <span class="hint" data-testid="suggest-status" aria-live="polite"></span>
+  </div>
+  {% endif %}
+
   <div class="row">
     <label>Status
       <select name="status" data-testid="input-status">
@@ -40,4 +47,5 @@
     <a href="{% if editing %}/tasks/{{ task.id }}{% else %}/{% endif %}" class="nav-link" data-testid="cancel">Cancel</a>
   </div>
 </form>
+{% if ai_enabled() %}<script src="/static/suggest-title.js"></script>{% endif %}
 {% endblock %}

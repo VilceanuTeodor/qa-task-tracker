@@ -86,3 +86,11 @@ class Task(BaseModel):
 class TaskDetail(Task):
     comments: list[Comment]
     history: list[HistoryEntry]
+
+
+class TitleSuggestionRequest(BaseModel):
+    description: str
+
+
+class TitleSuggestion(BaseModel):
+    title: str

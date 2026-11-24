@@ -69,3 +69,10 @@ def test_filter_the_task_list_by_status(user_page: Page, user, admin):
     expect(user_page.get_by_test_id(f"task-row-{todo['id']}")).to_have_count(0)
     for t in (done, todo):
         admin.delete(f"/api/tasks/{t['id']}")
+
+
+def test_ai_suggest_button_is_hidden_when_ai_is_not_configured(user_page: Page):
+    # The test app has no ANTHROPIC_API_KEY, so the feature must be invisible, not broken.
+    user_page.get_by_test_id("nav-new-task").click()
+    expect(user_page.get_by_test_id("input-title")).to_be_visible()
+    expect(user_page.get_by_test_id("suggest-title")).to_have_count(0)
