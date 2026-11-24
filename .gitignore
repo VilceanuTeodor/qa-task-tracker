@@ -4,7 +4,9 @@ __pycache__/
 tracker.db
 .pytest_cache/
 test-results/
+.env
 
 # Personal notes, not part of the app
 tasks.txt
 Task.py
+db_queries.txt

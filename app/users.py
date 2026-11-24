@@ -4,11 +4,10 @@ import hmac
 import os
 import re
 import secrets
-import sqlite3
 from datetime import datetime, timedelta
 from typing import Literal, get_args
 
-from app.db import get_conn
+from app.db import IntegrityError, get_conn
 from app.errors import ValidationError
 
 Role = Literal["user", "admin"]
@@ -68,12 +67,11 @@ def create_user(username, password, role="user"):
     _check_role(role)
     try:
         with get_conn() as conn:
-            cur = conn.execute(
-                "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
+            row = conn.execute(
+                "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?) RETURNING *",
                 (username, hash_password(password), role, _fmt(datetime.now())),
-            )
-            row = conn.execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone()
-    except sqlite3.IntegrityError:
+            ).fetchone()
+    except IntegrityError:
         raise ValidationError("That username is already taken")
     return _public(row)
 
@@ -81,7 +79,7 @@ def create_user(username, password, role="user"):
 def authenticate(username, password):
     """Return the user if the credentials are right, else None."""
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM users WHERE username = ?", ((username or "").strip(),)).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE lower(username) = lower(?)", ((username or "").strip(),)).fetchone()
     if row is None or not verify_password(password or "", row["password_hash"]):
         return None
     return _public(row)
@@ -97,13 +95,13 @@ def get_user(user_id):
 
 def find_user(username):
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM users WHERE username = ?", ((username or "").strip(),)).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE lower(username) = lower(?)", ((username or "").strip(),)).fetchone()
     return _public(row) if row else None
 
 
 def list_users():
     with get_conn() as conn:
-        return [_public(row) for row in conn.execute("SELECT * FROM users ORDER BY username")]
+        return [_public(row) for row in conn.execute("SELECT * FROM users ORDER BY lower(username)")]
 
 
 def set_role(user_id, role, acting_user_id):

@@ -36,6 +36,9 @@ def base_url(tmp_path_factory):
         "TRACKER_DB": str(tmp / "test.db"),
         "ADMIN_USERNAME": ADMIN_USERNAME,
         "ADMIN_PASSWORD": ADMIN_PASSWORD,
+        # Never test against a DATABASE_URL left in the shell (it could be production).
+        # Only TEST_DATABASE_URL, set on purpose, runs the tests on PostgreSQL.
+        "DATABASE_URL": os.environ.get("TEST_DATABASE_URL", ""),
     }
     log_path = tmp / "server.log"
     with open(log_path, "w") as log:

@@ -69,12 +69,12 @@ def create_task(title, creator, description="", assignee="", status="To Do"):
     status = _check_status(status)
     now = _now()
     with get_conn() as conn:
-        cur = conn.execute(
+        # RETURNING hands back the new row's id; works in both SQLite and PostgreSQL.
+        task_id = conn.execute(
             """INSERT INTO tasks (title, description, status, creator, assignee, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id""",
             (title, description, status, creator, assignee, now, now),
-        )
-        task_id = cur.lastrowid
+        ).fetchone()["id"]
         _log(conn, task_id, creator, f"Ticket created on {now} by {creator}", now)
     return get_task(task_id)
 
@@ -86,7 +86,8 @@ def list_tasks(status=None, assignee=None):
         clauses.append("status = ?")
         params.append(status)
     if assignee:
-        clauses.append("assignee LIKE ?")
+        # lower() on both sides: case-insensitive in both databases (PostgreSQL's LIKE is case-sensitive).
+        clauses.append("lower(assignee) LIKE lower(?)")
         params.append(f"%{assignee.strip()}%")
     if clauses:
         query += " WHERE " + " AND ".join(clauses)
@@ -151,7 +152,8 @@ def delete_task(task_id):
 
 def status_counts():
     with get_conn() as conn:
-        found = dict(conn.execute("SELECT status, COUNT(*) FROM tasks GROUP BY status").fetchall())
+        rows = conn.execute("SELECT status, COUNT(*) AS n FROM tasks GROUP BY status").fetchall()
+        found = {row["status"]: row["n"] for row in rows}
     return {status: found.get(status, 0) for status in STATUSES}
 
 
@@ -161,11 +163,10 @@ def add_comment(task_id, author, body):
     with get_conn() as conn:
         if conn.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone() is None:
             raise TaskNotFound(task_id)
-        cur = conn.execute(
-            "INSERT INTO comments (task_id, author, body, created_at) VALUES (?, ?, ?, ?)",
+        comment = conn.execute(
+            "INSERT INTO comments (task_id, author, body, created_at) VALUES (?, ?, ?, ?) RETURNING *",
             (task_id, author, body, now),
-        )
+        ).fetchone()
         conn.execute("UPDATE tasks SET updated_at = ? WHERE id = ?", (now, task_id))
         _log(conn, task_id, author, "Comment added", now)
-        comment = conn.execute("SELECT * FROM comments WHERE id = ?", (cur.lastrowid,)).fetchone()
     return dict(comment)
