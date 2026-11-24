@@ -9,6 +9,7 @@ from support import Api, unique_name
     ("GET", "/api/admin/users"),
     ("PATCH", "/api/admin/users/1"),
     ("DELETE", "/api/admin/users/1"),
+    ("GET", "/api/admin/debug/sentry-error"),
 ])
 def test_regular_users_are_forbidden(user, method, path):
     res = user.api.request(method, path, json={"role": "user"})
@@ -68,3 +69,10 @@ def test_deleting_a_user_signs_them_out(admin, base_url):
 
 def test_delete_missing_user_returns_404(admin):
     assert admin.delete("/api/admin/users/999999").status_code == 404
+
+
+def test_sentry_test_error_crashes_on_purpose(admin):
+    # The deliberate bug in app/debug.py: a plain 500, with no error details leaked to the caller.
+    res = admin.get("/api/admin/debug/sentry-error")
+    assert res.status_code == 500
+    assert "ZeroDivisionError" not in res.text

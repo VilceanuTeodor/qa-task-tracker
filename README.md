@@ -88,6 +88,8 @@ hosting platform's settings in production.
 | `COOKIE_SECURE` | No | `false` | `true` = the session cookie is only sent over HTTPS. Set it on any HTTPS deployment. |
 | `PORT` | No | `8000` | Port the Docker image listens on (Render sets this). |
 | `DB_POOL_SIZE` | No | `5` | Max open PostgreSQL connections. |
+| `SENTRY_DSN` | Keep private | *(empty = off)* | Sends crashes to [Sentry](#error-monitoring-sentry). |
+| `SENTRY_ENVIRONMENT` | No | `production` on Render, else `development` | Environment label on Sentry issues. |
 
 To run locally against PostgreSQL (for example your Neon database), set `DATABASE_URL` in your shell first:
 `$env:DATABASE_URL = "postgresql://..."` (macOS/Linux: `export DATABASE_URL=...`), then `python run.py`.
@@ -119,6 +121,17 @@ takes about a minute. Neon also sleeps when idle and wakes up in under a second.
 **Changing a secret:** edit it under **Environment** in Render and save; Render restarts the app with the new value.
 If the Neon password ever leaks, reset it in Neon (**Roles**) and update `DATABASE_URL` in Render.
 
+## Error monitoring (Sentry)
+
+When `SENTRY_DSN` is set, every unhandled error (a 500) is sent to [Sentry](https://sentry.io) with its stack
+trace and the code around each line, tagged with the environment and the deployed git commit (`RENDER_GIT_COMMIT`).
+Cookies, request bodies and user identity are **not** sent, and headers such as `Authorization` are filtered.
+Without `SENTRY_DSN` (locally, in tests) Sentry stays off.
+
+**To check it works:** sign in as admin and call `GET /api/admin/debug/sentry-error` (for example from `/docs`).
+It crashes on purpose with a `ZeroDivisionError` in [`app/debug.py`](app/debug.py), and the error shows up in
+Sentry as a new issue within a few seconds.
+
 ## API
 
 Every endpoint except signup/login needs `Authorization: Bearer <token>`.
@@ -143,6 +156,7 @@ Get a token from `POST /api/auth/login`; in Swagger (`/docs`) paste it into the 
 | PATCH | `/api/admin/users/{id}` | Change a user's role `{role}` (admin) |
 | DELETE | `/api/admin/users/{id}` | Delete a user (admin) |
 | GET | `/api/admin/stats` | Task and user counts (admin) |
+| GET | `/api/admin/debug/sentry-error` | Crash on purpose to test Sentry (admin) |
 
 Statuses: `To Do`, `In Progress`, `In Review`, `Done`.
 
