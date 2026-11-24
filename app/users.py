@@ -1,5 +1,6 @@
 """User accounts, password hashing and login sessions."""
 import hashlib
+import logging
 import hmac
 import os
 import re
@@ -7,6 +8,7 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Literal, get_args
 
+from app.audit import log_event
 from app.db import IntegrityError, get_conn
 from app.errors import ValidationError
 
@@ -73,6 +75,7 @@ def create_user(username, password, role="user"):
             ).fetchone()
     except IntegrityError:
         raise ValidationError("That username is already taken")
+    log_event("user_created", row["username"], user_id=row["id"], role=role)
     return _public(row)
 
 
@@ -81,7 +84,11 @@ def authenticate(username, password):
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM users WHERE lower(username) = lower(?)", ((username or "").strip(),)).fetchone()
     if row is None or not verify_password(password or "", row["password_hash"]):
+        # WARNING level: many of these in a row can mean someone is guessing passwords.
+        # The attempted username is logged (never the password).
+        log_event("login_failed", None, level=logging.WARNING, username=(username or "").strip())
         return None
+    log_event("login", row["username"], user_id=row["id"])
     return _public(row)
 
 
@@ -109,19 +116,28 @@ def set_role(user_id, role, acting_user_id):
     # Admins can't demote themselves, so there is always at least one admin left.
     if user_id == acting_user_id:
         raise ValidationError("You can't change your own role")
-    get_user(user_id)
+    target = get_user(user_id)
     with get_conn() as conn:
         conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+    log_event("role_changed", _username(acting_user_id), user=target["username"], user_id=user_id,
+              old_role=target["role"], new_role=role)
     return get_user(user_id)
 
 
 def delete_user(user_id, acting_user_id):
     if user_id == acting_user_id:
         raise ValidationError("You can't delete your own account")
+    target = get_user(user_id)   # raises UserNotFound; also gives us the name for the log
     with get_conn() as conn:
-        cur = conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
-        if cur.rowcount == 0:
-            raise UserNotFound(user_id)
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    log_event("user_deleted", _username(acting_user_id), user=target["username"], user_id=user_id)
+
+
+def _username(user_id):
+    try:
+        return get_user(user_id)["username"]
+    except UserNotFound:
+        return f"user#{user_id}"
 
 
 def _token_hash(token):
@@ -155,8 +171,11 @@ def user_for_token(token):
 
 def delete_session(token):
     if token:
+        user = user_for_token(token)
         with get_conn() as conn:
             conn.execute("DELETE FROM sessions WHERE token_hash = ?", (_token_hash(token),))
+        if user:
+            log_event("logout", user["username"], user_id=user["id"])
 
 
 def ensure_admin():
@@ -177,4 +196,6 @@ def ensure_admin():
         if password:
             _check_password(password)
             conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(password), existing["id"]))
+    if password:
+        log_event("admin_password_set", "system", user=username, source="ADMIN_PASSWORD")
     return None

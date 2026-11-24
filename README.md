@@ -90,6 +90,7 @@ hosting platform's settings in production.
 | `DB_POOL_SIZE` | No | `5` | Max open PostgreSQL connections. |
 | `SENTRY_DSN` | Keep private | *(empty = off)* | Sends crashes to [Sentry](#error-monitoring-sentry). |
 | `SENTRY_ENVIRONMENT` | No | `production` on Render, else `development` | Environment label on Sentry issues. |
+| `LOG_LEVEL` | No | `INFO` | How much the app logs: `DEBUG`, `INFO`, `WARNING` (only failed logins) or `ERROR`. |
 
 To run locally against PostgreSQL (for example your Neon database), set `DATABASE_URL` in your shell first:
 `$env:DATABASE_URL = "postgresql://..."` (macOS/Linux: `export DATABASE_URL=...`), then `python run.py`.
@@ -120,6 +121,20 @@ takes about a minute. Neon also sleeps when idle and wakes up in under a second.
 
 **Changing a secret:** edit it under **Environment** in Render and save; Render restarts the app with the new value.
 If the Neon password ever leaks, reset it in Neon (**Roles**) and update `DATABASE_URL` in Render.
+
+## Audit log
+
+The app writes one line to standard output for every meaningful action: who (`actor`) did what (`action`) to what.
+Logged actions: `user_created`, `login`, `login_failed` (WARNING), `logout`, `task_created`, `task_updated`,
+`task_deleted`, `comment_added`, `role_changed`, `user_deleted` and `admin_password_set`.
+
+```
+2026-11-24 14:57:23 INFO tracker.audit: action=role_changed actor=admin user=alice user_id=9 old_role=user new_role=admin
+```
+
+Passwords, tokens, cookies and comment text are never logged. Values with spaces are quoted and newlines are
+escaped, so user input cannot fake extra log lines. Where to read them: the terminal running `python run.py`,
+`docker compose logs app`, or the **Logs** tab of the service in Render.
 
 ## Error monitoring (Sentry)
 
