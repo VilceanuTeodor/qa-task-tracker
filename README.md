@@ -91,6 +91,9 @@ hosting platform's settings in production.
 | `SENTRY_DSN` | Keep private | *(empty = off)* | Sends crashes to [Sentry](#error-monitoring-sentry). |
 | `SENTRY_ENVIRONMENT` | No | `production` on Render, else `development` | Environment label on Sentry issues. |
 | `LOG_LEVEL` | No | `INFO` | How much the app logs: `DEBUG`, `INFO`, `WARNING` (only failed logins) or `ERROR`. |
+| `ANTHROPIC_API_KEY` | **Yes** | *(empty = off)* | Claude API key for [AI title suggestions](#ai-title-suggestions-claude-api). |
+| `AI_MODEL` | No | `claude-opus-5-5` | Claude model for title suggestions. |
+| `AI_RATE_LIMIT_PER_MINUTE` / `AI_RATE_LIMIT_PER_DAY` / `AI_GLOBAL_LIMIT_PER_DAY` | No | `5` / `30` / `50` | Limits on title suggestions (per user per minute, per user per day, all users per day). |
 
 To run locally against PostgreSQL (for example your Neon database), set `DATABASE_URL` in your shell first:
 `$env:DATABASE_URL = "postgresql://..."` (macOS/Linux: `export DATABASE_URL=...`), then `python run.py`.
@@ -121,6 +124,31 @@ takes about a minute. Neon also sleeps when idle and wakes up in under a second.
 
 **Changing a secret:** edit it under **Environment** in Render and save; Render restarts the app with the new value.
 If the Neon password ever leaks, reset it in Neon (**Roles**) and update `DATABASE_URL` in Render.
+
+## AI title suggestions (Claude API)
+
+On the New task and Edit task pages, **Suggest title from description** asks Claude for a short title. The browser
+only talks to this app (`POST /tasks/suggest-title`, or `POST /api/ai/suggest-title` with a token); the app calls the
+Claude API on the server, so **the API key never reaches the browser and is never in the repo**.
+
+- **Off by default.** It turns on only when `ANTHROPIC_API_KEY` is set (Render: **Environment** tab; locally: your shell
+  or `.env`). Without it the button is hidden and the endpoint returns 503.
+- **Cost controls:** at most 5 suggestions per user per minute, 30 per user per day and 50 per day in total
+  (`AI_RATE_LIMIT_PER_MINUTE`, `AI_RATE_LIMIT_PER_DAY`, `AI_GLOBAL_LIMIT_PER_DAY`), descriptions up to 4000 characters,
+  low effort and a 1024-token cap per reply. Over a limit the API returns 429 with `Retry-After`. Also set a spend
+  limit in the Claude Console as a backstop.
+- **Model:** `claude-opus-5-5` by default; set `AI_MODEL` to change it (e.g. `claude-haiku-5-5` is much cheaper).
+- **Safety:** the description is sent as data with instructions not to follow commands inside it; the reply is cleaned
+  to a single line of at most 200 characters; each call logs `action=ai_title_suggested` with token usage (never the description).
+
+**Testing it:** `tests/unit/test_ai.py` uses a fake Claude client (free, predictable: prompts, cleaning, errors, limits);
+`tests/api/test_api_ai.py` checks the endpoints and that no key leaks. `tests/live/` calls the real API and is skipped
+unless you opt in (costs a fraction of a cent per run):
+
+```powershell
+$env:RUN_LIVE_AI_TESTS = "1"; $env:ANTHROPIC_API_KEY = "sk-ant-..."   # this terminal only
+python -m pytest tests/live -v -s
+```
 
 ## Audit log
 
@@ -172,6 +200,7 @@ Get a token from `POST /api/auth/login`; in Swagger (`/docs`) paste it into the 
 | DELETE | `/api/admin/users/{id}` | Delete a user (admin) |
 | GET | `/api/admin/stats` | Task and user counts (admin) |
 | GET | `/api/admin/debug/sentry-error` | Crash on purpose to test Sentry (admin) |
+| POST | `/api/ai/suggest-title` | Suggest a task title from `{description}` with Claude (rate limited) |
 
 Statuses: `To Do`, `In Progress`, `In Review`, `Done`.
 
@@ -190,6 +219,7 @@ python -m pytest                    # everything, browser hidden (headless)
 python -m pytest tests/api          # API tests only
 python -m pytest tests/ui --headed  # watch the browser, with a short pause after each step
 python -m pytest -k comment         # only tests with "comment" in their name
+python -m pytest tests/unit         # unit tests (no server needed), e.g. the AI feature with a fake Claude
 ```
 
 ## API collection (Postman)

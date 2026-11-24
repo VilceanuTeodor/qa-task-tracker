@@ -6,12 +6,15 @@ from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app import tasks, users
+from app import ai, tasks, users
 from app.auth import SESSION_COOKIE, optional_user, require_admin, require_user
 from app.errors import ValidationError
+from app.schemas import TitleSuggestionRequest
 
 router = APIRouter(include_in_schema=False)
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
+# Templates only learn WHETHER AI is on (to show the button), never the key itself.
+templates.env.globals["ai_enabled"] = ai.is_enabled
 
 
 def render(request, name, user, status_code=200, **context):
@@ -132,6 +135,13 @@ def index(request: Request, status: str = "", assignee: str = "", user=Depends(r
 @router.get("/tasks/new")
 def new_task_form(request: Request, user=Depends(require_user)):
     return render(request, "form.html", user, editing=False, task=None, form={}, usernames=_usernames(), error=None)
+
+
+@router.post("/tasks/suggest-title")
+def suggest_title(payload: TitleSuggestionRequest, user=Depends(require_user)):
+    """Called by the "Suggest title" button (JSON in, JSON out). Claude is called here, on the server."""
+    from app.api import suggest_title_or_http_error  # shared error mapping
+    return {"title": suggest_title_or_http_error(payload.description, user["username"])}
 
 
 @router.post("/tasks")

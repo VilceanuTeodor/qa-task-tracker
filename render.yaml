@@ -19,3 +19,5 @@ services:
         value: "true"
       - key: SENTRY_DSN        # where to send errors (Sentry > Project Settings > Client Keys)
         sync: false
+      - key: ANTHROPIC_API_KEY # Claude API key for "Suggest title" (secret; feature is off without it)
+        sync: false
