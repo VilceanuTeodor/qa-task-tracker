@@ -186,3 +186,32 @@ def test_usage_is_logged_but_never_the_description(caplog):
     assert "action=ai_title_suggested actor=alice" in log
     assert "input_tokens=120 output_tokens=15" in log
     assert "secret project" not in log
+
+
+# --- asking for a different title --------------------------------------------------
+
+def test_no_previous_titles_means_no_extra_block():
+    claude = FakeClaude()
+    suggest("Fix the footer", claude)
+    assert "<already_suggested>" not in claude.calls[0]["messages"][0]["content"]
+
+
+def test_previous_titles_are_sent_so_claude_suggests_a_different_one():
+    claude = FakeClaude()
+    ai.suggest_title("Fix the footer", "alice", previous=["Update footer year", "Fix footer copyright"],
+                     client=claude, rate_limiter=no_limits())
+    message = claude.calls[0]["messages"][0]["content"]
+    assert "<already_suggested>\n- Update footer year\n- Fix footer copyright\n</already_suggested>" in message
+    assert "different title" in message
+    assert "clearly different" in claude.calls[0]["system"]
+
+
+def test_previous_titles_are_cleaned_and_capped():
+    claude = FakeClaude()
+    previous = ["", "  ", "Same", "same", "x" * 500] + [f"Title {i}" for i in range(10)]
+    ai.suggest_title("desc", "alice", previous=previous, client=claude, rate_limiter=no_limits())
+    listed = claude.calls[0]["messages"][0]["content"].split("<already_suggested>\n")[1].split("\n</already_suggested>")[0]
+    lines = listed.splitlines()
+    assert len(lines) == ai.PREVIOUS_MAX            # only the last few are sent
+    assert lines[-1] == "- Title 9"
+    assert all(len(line) <= ai.TITLE_MAX + 2 for line in lines)
