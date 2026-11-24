@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app import ai, tasks, users
+from app import ai, tasks, users, webhooks
 from app.auth import SESSION_COOKIE, optional_user, require_admin, require_user
 from app.errors import ValidationError
 from app.schemas import TitleSuggestionRequest
@@ -234,6 +234,53 @@ def _admin_page(request, user, status_code=200, error=None):
 @router.get("/admin")
 def admin_dashboard(request: Request, user=Depends(require_admin)):
     return _admin_page(request, user)
+
+
+def _webhooks_page(request, user, status_code=200, error=None, created=None):
+    hooks = [{**h, "deliveries": webhooks.list_deliveries(h["id"], limit=10)} for h in webhooks.list_webhooks()]
+    return render(request, "webhooks.html", user, status_code=status_code,
+                  hooks=hooks, events=webhooks.EVENTS, error=error, created=created)
+
+
+@router.get("/admin/webhooks")
+def admin_webhooks(request: Request, user=Depends(require_admin)):
+    return _webhooks_page(request, user)
+
+
+@router.post("/admin/webhooks")
+def admin_add_webhook(request: Request, url: str = Form(""), user=Depends(require_admin)):
+    try:
+        created = webhooks.create_webhook(url, user["username"])
+    except ValidationError as e:
+        return _webhooks_page(request, user, status_code=422, error=str(e))
+    return _webhooks_page(request, user, created=created)   # shows the secret once
+
+
+@router.post("/admin/webhooks/{webhook_id}/test")
+def admin_test_webhook(request: Request, webhook_id: int, user=Depends(require_admin)):
+    try:
+        webhooks.send_test(webhook_id, user["username"])
+    except webhooks.WebhookNotFound as e:
+        return _not_found(request, user, f"{e}.")
+    return RedirectResponse("/admin/webhooks", status_code=303)
+
+
+@router.post("/admin/webhooks/{webhook_id}/delete")
+def admin_delete_webhook(request: Request, webhook_id: int, user=Depends(require_admin)):
+    try:
+        webhooks.delete_webhook(webhook_id, user["username"])
+    except webhooks.WebhookNotFound as e:
+        return _not_found(request, user, f"{e}.")
+    return RedirectResponse("/admin/webhooks", status_code=303)
+
+
+@router.post("/admin/webhook-deliveries/{delivery_id}/redeliver")
+def admin_redeliver(request: Request, delivery_id: int, user=Depends(require_admin)):
+    try:
+        webhooks.redeliver(delivery_id, user["username"])
+    except webhooks.DeliveryNotFound as e:
+        return _not_found(request, user, f"{e}.")
+    return RedirectResponse("/admin/webhooks", status_code=303)
 
 
 @router.post("/admin/users/{user_id}/role")

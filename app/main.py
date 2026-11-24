@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import api, audit, auth, db, monitoring, users, web
+from app import api, audit, auth, db, monitoring, users, web, webhooks
 
 # Before the app is created, so Sentry can hook into FastAPI and catch every crash.
 monitoring.init_sentry()
@@ -30,7 +30,9 @@ async def lifespan(app):
             "\n" + "=" * 60 + "\n",
             flush=True,
         )
+    webhooks.start_worker()   # sends queued webhook deliveries in the background
     yield
+    webhooks.stop_worker()
 
 
 app = FastAPI(title="Task Tracker", description="A basic Jira-like task tracker.", lifespan=lifespan)

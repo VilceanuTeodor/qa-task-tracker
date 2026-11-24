@@ -4,7 +4,7 @@ Log in with POST /api/auth/login, then send the token as `Authorization: Bearer 
 """
 from fastapi import APIRouter, Depends, HTTPException, Response
 
-from app import ai, debug, tasks, users
+from app import ai, debug, tasks, users, webhooks
 from app.auth import api_admin, api_token, api_user
 from app.errors import ValidationError
 from app.schemas import (
@@ -23,6 +23,10 @@ from app.schemas import (
     TitleSuggestionRequest,
     User,
     UserSummary,
+    Webhook,
+    WebhookCreate,
+    WebhookDelivery,
+    WebhookWithSecret,
 )
 from app.tasks import Status
 
@@ -34,7 +38,7 @@ admin_router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depe
 def _run(fn, *args, **kwargs):
     try:
         return fn(*args, **kwargs)
-    except (tasks.TaskNotFound, users.UserNotFound) as e:
+    except (tasks.TaskNotFound, users.UserNotFound, webhooks.WebhookNotFound, webhooks.DeliveryNotFound) as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -159,6 +163,44 @@ def admin_delete_user(user_id: int, admin=Depends(api_admin)):
 def debug_sentry_error():
     """Crashes on purpose with a ZeroDivisionError, so you can follow it in Sentry. Admin only."""
     debug.trigger_test_error()
+
+
+# --- webhooks (admin) ---
+
+@admin_router.get("/webhooks", response_model=list[Webhook], tags=["webhooks"])
+def list_webhooks():
+    return webhooks.list_webhooks()
+
+
+@admin_router.post("/webhooks", response_model=WebhookWithSecret, status_code=201, tags=["webhooks"],
+                   summary="Register a webhook URL (the response has its secret, shown only once)")
+def create_webhook(payload: WebhookCreate, admin=Depends(api_admin)):
+    return _run(webhooks.create_webhook, payload.url, admin["username"], payload.events)
+
+
+@admin_router.delete("/webhooks/{webhook_id}", status_code=204, tags=["webhooks"])
+def delete_webhook(webhook_id: int, admin=Depends(api_admin)):
+    _run(webhooks.delete_webhook, webhook_id, admin["username"])
+    return Response(status_code=204)
+
+
+@admin_router.post("/webhooks/{webhook_id}/test", status_code=202, tags=["webhooks"],
+                   summary="Queue a webhook.test event for this webhook")
+def test_webhook(webhook_id: int, admin=Depends(api_admin)):
+    _run(webhooks.send_test, webhook_id, admin["username"])
+    return {"queued": True}
+
+
+@admin_router.get("/webhooks/{webhook_id}/deliveries", response_model=list[WebhookDelivery], tags=["webhooks"],
+                  summary="Delivery log: newest first, with attempts, status codes and errors")
+def webhook_deliveries(webhook_id: int, limit: int = 20):
+    return _run(webhooks.list_deliveries, webhook_id, limit)
+
+
+@admin_router.post("/webhook-deliveries/{delivery_id}/redeliver", response_model=WebhookDelivery, tags=["webhooks"],
+                   summary="Send a delivery again now (e.g. after the receiver was down)")
+def redeliver(delivery_id: int, admin=Depends(api_admin)):
+    return _run(webhooks.redeliver, delivery_id, admin["username"])
 
 
 @admin_router.get("/stats", response_model=Stats)

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Webhooks{% endblock %}
+{% block content %}
+<h1>Webhooks</h1>
+<p class="muted"><a href="/admin">← Admin</a> · Each event is sent as a signed JSON POST to every URL below.
+  Failed deliveries are retried automatically; the log shows every attempt.</p>
+{% if error %}<p class="error" data-testid="webhooks-error">{{ error }}</p>{% endif %}
+
+{% if created %}
+<div class="card" data-testid="webhook-created">
+  <strong>Webhook added.</strong> Its signing secret is shown only now. Copy it if the receiver checks signatures:
+  <pre data-testid="webhook-secret">{{ created.secret }}</pre>
+</div>
+{% endif %}
+
+<form method="post" action="/admin/webhooks" class="card form" data-testid="webhook-form">
+  <label>Receiver URL
+    <input name="url" type="url" required maxlength="500" placeholder="https://webhook.site/..." data-testid="input-webhook-url">
+  </label>
+  <div class="form-actions"><button class="button" data-testid="add-webhook">Add webhook</button>
+    <span class="hint">Sends all events: {{ events|join(", ") }}</span></div>
+</form>
+
+{% for hook in hooks %}
+<section class="card" data-testid="webhook-{{ hook.id }}">
+  <div class="actions">
+    <strong data-testid="webhook-url-{{ hook.id }}">#{{ hook.id }} {{ hook.url }}</strong>
+    <form method="post" action="/admin/webhooks/{{ hook.id }}/test" class="inline">
+      <button class="button secondary small" data-testid="test-webhook-{{ hook.id }}">Send test event</button>
+    </form>
+    <form method="post" action="/admin/webhooks/{{ hook.id }}/delete" class="inline"
+          onsubmit="return confirm('Delete this webhook and its delivery log?');">
+      <button class="button danger small" data-testid="delete-webhook-{{ hook.id }}">Delete</button>
+    </form>
+  </div>
+  <table class="task-table" data-testid="deliveries-{{ hook.id }}">
+    <thead><tr><th>#</th><th>Event</th><th>Status</th><th>Attempts</th><th>Last result</th><th>Next try / updated</th><th></th></tr></thead>
+    <tbody>
+      {% for d in hook.deliveries %}
+      <tr data-testid="delivery-{{ d.id }}">
+        <td class="muted">{{ d.id }}</td>
+        <td>{{ d.event }}</td>
+        <td><span class="badge delivery-{{ d.status }}" data-testid="delivery-status-{{ d.id }}">{{ d.status }}</span></td>
+        <td>{{ d.attempts }}</td>
+        <td class="muted">{% if d.last_status_code %}HTTP {{ d.last_status_code }}{% endif %} {{ d.last_error }}</td>
+        <td class="muted">{{ (d.next_attempt_at if d.status == 'pending' else d.updated_at)[:19] }}</td>
+        <td>{% if d.status in ('failed', 'succeeded') %}
+          <form method="post" action="/admin/webhook-deliveries/{{ d.id }}/redeliver" class="inline">
+            <button class="button secondary small" data-testid="redeliver-{{ d.id }}">Redeliver</button>
+          </form>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="muted">No deliveries yet. Create or edit a task, or send a test event.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% else %}
+<p class="muted" data-testid="no-webhooks">No webhooks yet. Add one above, e.g. a URL from webhook.site.</p>
+{% endfor %}
+{% endblock %}

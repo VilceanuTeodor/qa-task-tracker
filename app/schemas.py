@@ -96,3 +96,36 @@ class TitleSuggestionRequest(BaseModel):
 
 class TitleSuggestion(BaseModel):
     title: str
+
+
+class WebhookCreate(BaseModel):
+    url: str
+    # Which events to send: ["*"] for all, or any of task.created, task.updated, task.deleted, comment.added.
+    events: list[str] = Field(default_factory=lambda: ["*"], max_length=10)
+
+
+class Webhook(BaseModel):
+    id: int
+    url: str
+    events: list[str]
+    created_by: str
+    created_at: str
+
+
+class WebhookWithSecret(Webhook):
+    # Shown only once, when the webhook is created. The receiver uses it to check signatures.
+    secret: str
+
+
+class WebhookDelivery(BaseModel):
+    id: int
+    webhook_id: int
+    event_id: str
+    event: str
+    status: str          # pending | sending | succeeded | failed
+    attempts: int
+    next_attempt_at: str
+    last_status_code: int | None
+    last_error: str
+    created_at: str
+    updated_at: str
