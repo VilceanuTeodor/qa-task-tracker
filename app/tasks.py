@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Literal, get_args
 
-from app import users
+from app import users, webhooks
 from app.audit import log_event
 from app.db import get_conn
 from app.errors import ValidationError
@@ -54,6 +54,11 @@ def _log(conn, task_id, actor, message, at):
     )
 
 
+def _webhook_task(task):
+    """The task fields sent in webhook events (not its comments or history)."""
+    return {k: task[k] for k in ("id", "title", "description", "status", "creator", "assignee", "created_at", "updated_at")}
+
+
 def _describe_change(field, old, new):
     if field == "description":
         return "Description updated"
@@ -78,7 +83,9 @@ def create_task(title, creator, description="", assignee="", status="To Do"):
         ).fetchone()["id"]
         _log(conn, task_id, creator, f"Ticket created on {now} by {creator}", now)
     log_event("task_created", creator, task_id=task_id, title=title, status=status, assignee=assignee or "-")
-    return get_task(task_id)
+    task = get_task(task_id)
+    webhooks.emit("task.created", {"task": _webhook_task(task)}, creator)
+    return task
 
 
 def list_tasks(status=None, assignee=None):
@@ -144,7 +151,9 @@ def update_task(task_id, actor, title=None, description=None, status=None, assig
             _log(conn, task_id, actor, _describe_change(field, current[field], new), now)
     # Field names only; the old/new values are in the task's own history.
     log_event("task_updated", actor, task_id=task_id, fields=",".join(changes))
-    return get_task(task_id)
+    task = get_task(task_id)
+    webhooks.emit("task.updated", {"task": _webhook_task(task), "changed_fields": list(changes)}, actor)
+    return task
 
 
 def delete_task(task_id, deleted_by=None):
@@ -154,6 +163,7 @@ def delete_task(task_id, deleted_by=None):
             raise TaskNotFound(task_id)
     # The task and its history are gone after this, so the log is the only record of who deleted it.
     log_event("task_deleted", deleted_by, task_id=task_id, title=row["title"])
+    webhooks.emit("task.deleted", {"task": {"id": task_id, "title": row["title"]}}, deleted_by)
 
 
 def status_counts():
@@ -176,4 +186,5 @@ def add_comment(task_id, author, body):
         conn.execute("UPDATE tasks SET updated_at = ? WHERE id = ?", (now, task_id))
         _log(conn, task_id, author, "Comment added", now)
     log_event("comment_added", author, task_id=task_id, comment_id=comment["id"])  # never the comment text
+    webhooks.emit("comment.added", {"task_id": task_id, "comment": dict(comment)}, author)
     return dict(comment)

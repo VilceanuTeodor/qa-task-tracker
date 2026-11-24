@@ -2,6 +2,7 @@
 {% block title %}Admin{% endblock %}
 {% block content %}
 <h1>Admin</h1>
+<p><a href="/admin/webhooks" data-testid="admin-webhooks-link">Webhooks →</a></p>
 {% if error %}<p class="error" data-testid="admin-error">{{ error }}</p>{% endif %}
 
 <section class="stats" data-testid="stats">

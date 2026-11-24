@@ -147,3 +147,8 @@ form.inline { display: inline; margin: 0; }
 }
 
 .ai-suggest { display: flex; align-items: center; gap: 10px; margin: -4px 0 8px; }
+
+.badge.delivery-succeeded { background: #e3fcef; color: #006644; }
+.badge.delivery-failed { background: #ffebe6; color: #bf2600; }
+.badge.delivery-pending, .badge.delivery-sending { background: #fffae6; color: #974f0c; }
+pre { white-space: pre-wrap; word-break: break-all; }

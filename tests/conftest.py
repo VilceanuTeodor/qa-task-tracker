@@ -44,6 +44,12 @@ def app_server(tmp_path_factory):
         # The test app never calls the real Claude API (no cost, no flaky answers).
         # AI logic is tested with a fake client in tests/unit; tests/live calls the real API on request.
         "ANTHROPIC_API_KEY": "",
+        # Webhooks: retry after 0.5 s and 1 s (3 attempts), give up waiting after 1 s, check the
+        # queue often, and allow 127.0.0.1 receivers, so the outage tests take seconds, not hours.
+        "WEBHOOK_RETRY_DELAYS": "0.5,1",
+        "WEBHOOK_TIMEOUT_SECONDS": "1",
+        "WEBHOOK_POLL_SECONDS": "0.1",
+        "WEBHOOK_BLOCK_PRIVATE_URLS": "false",
     }
     log_path = tmp / "server.log"
     with open(log_path, "w") as log:
@@ -120,3 +126,13 @@ def task(user, admin):
     created = res.json()
     yield created
     admin.delete(f"/api/tasks/{created['id']}")
+
+
+@pytest.fixture
+def receiver():
+    """A fake webhook receiver (like webhook.site) that a test can make work, fail, slow down or go offline."""
+    from webhook_receiver import FakeReceiver
+    fake = FakeReceiver()
+    fake.start()
+    yield fake
+    fake.stop()

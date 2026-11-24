@@ -94,6 +94,9 @@ hosting platform's settings in production.
 | `ANTHROPIC_API_KEY` | **Yes** | *(empty = off)* | Claude API key for [AI title suggestions](#ai-title-suggestions-claude-api). |
 | `AI_MODEL` | No | `claude-opus-5-5` | Claude model for title suggestions. |
 | `AI_RATE_LIMIT_PER_MINUTE` / `AI_RATE_LIMIT_PER_DAY` / `AI_GLOBAL_LIMIT_PER_DAY` | No | `5` / `30` / `50` | Limits on title suggestions (per user per minute, per user per day, all users per day). |
+| `WEBHOOK_RETRY_DELAYS` | No | `10,60,300,1800` | Seconds to wait before each webhook retry. |
+| `WEBHOOK_TIMEOUT_SECONDS` | No | `5` | How long to wait for a webhook receiver to answer. |
+| `WEBHOOK_BLOCK_PRIVATE_URLS` | No | `true` on Render, else `false` | Refuse webhook URLs that point to private network addresses. |
 
 To run locally against PostgreSQL (for example your Neon database), set `DATABASE_URL` in your shell first:
 `$env:DATABASE_URL = "postgresql://..."` (macOS/Linux: `export DATABASE_URL=...`), then `python run.py`.
@@ -150,6 +153,37 @@ $env:RUN_LIVE_AI_TESTS = "1"; $env:ANTHROPIC_API_KEY = "sk-ant-..."   # this ter
 python -m pytest tests/live -v -s
 ```
 
+## Webhooks
+
+An admin can register URLs (**Admin > Webhooks**, or the API) that get an HTTP `POST` with a JSON event whenever
+something happens: `task.created`, `task.updated`, `task.deleted`, `comment.added` (or only some of them).
+
+```
+POST <your url>
+Content-Type: application/json
+X-Webhook-Event: task.updated
+X-Webhook-Id: evt_3f2a...          same on every retry, so receivers can skip duplicates
+X-Webhook-Attempt: 1
+X-Webhook-Timestamp: 1764000000
+X-Webhook-Signature: sha256=...     HMAC-SHA256 of "<timestamp>.<body>" with the webhook's secret
+
+{"id": "evt_3f2a...", "event": "task.updated", "actor": "alice", "created_at": "...",
+ "data": {"task": {"id": 7, "title": "...", "status": "Done", ...}, "changed_fields": ["status"]}}
+```
+
+**Reliability.** Events are queued in the database and sent by a background worker, so a slow or broken receiver
+never slows down or breaks the action that caused the event. A delivery succeeds on any `2xx` answer. Errors, refused
+connections and timeouts (default 5 s) are retried after 10 s, 1 min, 5 min and 30 min; after that the delivery is
+marked **failed** and an admin can **Redeliver** it once the receiver works again. Every attempt is in the delivery
+log and in the audit log (`action=webhook_attempt`). Queued deliveries survive restarts. On Render's free plan the app
+sleeps when idle, so retries due while it sleeps go out when it wakes.
+
+**Security.** Each webhook has its own secret (shown once): receivers recompute the signature to check the request
+is genuine. On Render, URLs that resolve to private network addresses are refused, and redirects are not followed.
+
+**Testing.** `tests/api/test_api_webhooks.py` uses a fake receiver that the tests switch between working, returning
+HTTP 500, answering slowly and being offline, with retry waits shortened to under a second.
+
 ## Audit log
 
 The app writes one line to standard output for every meaningful action: who (`actor`) did what (`action`) to what.
@@ -201,6 +235,12 @@ Get a token from `POST /api/auth/login`; in Swagger (`/docs`) paste it into the 
 | GET | `/api/admin/stats` | Task and user counts (admin) |
 | GET | `/api/admin/debug/sentry-error` | Crash on purpose to test Sentry (admin) |
 | POST | `/api/ai/suggest-title` | Suggest a task title from `{description}` with Claude (rate limited) |
+| GET | `/api/admin/webhooks` | List webhooks (admin) |
+| POST | `/api/admin/webhooks` | Register `{url, events?}`; the response has the signing secret, shown once (admin) |
+| DELETE | `/api/admin/webhooks/{id}` | Remove a webhook and its delivery log (admin) |
+| POST | `/api/admin/webhooks/{id}/test` | Queue a `webhook.test` event (admin) |
+| GET | `/api/admin/webhooks/{id}/deliveries` | Delivery log: status, attempts, last status code / error (admin) |
+| POST | `/api/admin/webhook-deliveries/{id}/redeliver` | Send a delivery again now (admin) |
 
 Statuses: `To Do`, `In Progress`, `In Review`, `Done`.
 
