@@ -141,7 +141,7 @@ def new_task_form(request: Request, user=Depends(require_user)):
 def suggest_title(payload: TitleSuggestionRequest, user=Depends(require_user)):
     """Called by the "Suggest title" button (JSON in, JSON out). Claude is called here, on the server."""
     from app.api import suggest_title_or_http_error  # shared error mapping
-    return {"title": suggest_title_or_http_error(payload.description, user["username"])}
+    return {"title": suggest_title_or_http_error(payload.description, user["username"], payload.previous)}
 
 
 @router.post("/tasks")

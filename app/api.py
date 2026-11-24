@@ -40,10 +40,10 @@ def _run(fn, *args, **kwargs):
         raise HTTPException(status_code=422, detail=str(e))
 
 
-def suggest_title_or_http_error(description, username):
+def suggest_title_or_http_error(description, username, previous=None):
     """Shared by the API and the web page: maps AI errors to HTTP status codes."""
     try:
-        return ai.suggest_title(description, actor=username)
+        return ai.suggest_title(description, actor=username, previous=previous)
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except ai.AINotConfigured:
@@ -129,7 +129,7 @@ def add_comment(task_id: int, payload: CommentCreate, user=Depends(api_user)):
              summary="Suggest a task title from a description (Claude)")
 def suggest_title(payload: TitleSuggestionRequest, user=Depends(api_user)):
     """Rate limited per user. 503 if AI isn't configured, 429 if over the limit, 502 if the AI call fails."""
-    return {"title": suggest_title_or_http_error(payload.description, user["username"])}
+    return {"title": suggest_title_or_http_error(payload.description, user["username"], payload.previous)}
 
 
 @router.get("/tasks/{task_id}/history", response_model=list[HistoryEntry])

@@ -29,3 +29,10 @@ def test_key_is_never_exposed_in_pages_or_docs(base_url, user):
     page = requests.get(f"{base_url}/login").text
     schema = Api(base_url).get("/openapi.json").text
     assert "sk-ant-" not in page and "sk-ant-" not in schema
+
+
+def test_api_accepts_previous_titles_but_not_unlimited_ones(user):
+    ok = user.api.post("/api/ai/suggest-title", json={"description": "x", "previous": ["A", "B"]})
+    assert ok.status_code == 503   # accepted by the schema; only "not configured" in the test app
+    too_many = user.api.post("/api/ai/suggest-title", json={"description": "x", "previous": ["t"] * 21})
+    assert too_many.status_code == 422

@@ -1,5 +1,5 @@
 """Request/response models for the JSON API (these also drive the Swagger docs)."""
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.tasks import Status
 from app.users import Role
@@ -90,6 +90,8 @@ class TaskDetail(Task):
 
 class TitleSuggestionRequest(BaseModel):
     description: str
+    # Titles already suggested (or typed) for this task, so Claude can offer a different one.
+    previous: list[str] = Field(default_factory=list, max_length=20)
 
 
 class TitleSuggestion(BaseModel):
