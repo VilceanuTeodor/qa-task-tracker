@@ -31,9 +31,7 @@
       if (res.ok) {
         title.value = data.title;
         suggested.push(data.title);
-        status.textContent = suggested.length > 1
-          ? `Suggestion ${suggested.length}. Click again for another one.`
-          : "Suggested by AI. Check it and edit if needed, or click again for another one.";
+        status.textContent = "Suggested by AI. Check it and edit if needed, or click again for another one.";
       } else {
         status.textContent = (typeof data.detail === "string" && data.detail) || "Couldn't suggest a title.";
       }
