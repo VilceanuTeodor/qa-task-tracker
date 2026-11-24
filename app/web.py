@@ -1,4 +1,5 @@
 """Server-rendered HTML pages."""
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -42,6 +43,9 @@ def _start_session(user_id, target):
         max_age=int(users.SESSION_LIFETIME.total_seconds()),
         httponly=True,
         samesite="lax",
+        # COOKIE_SECURE=true (set on the HTTPS deployment): the browser only sends the
+        # session cookie over HTTPS. Off by default so http://127.0.0.1 keeps working.
+        secure=os.environ.get("COOKIE_SECURE", "").lower() == "true",
     )
     return response
 

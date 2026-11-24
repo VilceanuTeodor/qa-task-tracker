@@ -1,6 +1,7 @@
 # Task Tracker
 
-A basic Jira-like task tracker built with FastAPI and SQLite, made for practicing QA.
+A basic Jira-like task tracker built with FastAPI, made for practicing QA. It stores data in SQLite locally
+and in PostgreSQL in production ([deployed on Render with a Neon database](#deploy-render--neon)).
 
 - Sign up / sign in; every page and API call requires an account
 - Create, view, edit and delete tasks (title, description, status, creator, assignee)
@@ -72,6 +73,52 @@ Accounts created through Sign up are regular users. An admin can promote them on
 | Delete tasks | | ✓ |
 | Admin page (stats, users, roles, delete users) | | ✓ |
 
+## Configuration
+
+All settings come from environment variables, so no secrets live in the code or in git.
+[`.env.example`](.env.example) lists them; real values go in a git-ignored `.env` file locally, or in the
+hosting platform's settings in production.
+
+| Variable | Secret? | Default | What it does |
+|---|---|---|---|
+| `DATABASE_URL` | **Yes** | *(empty)* | PostgreSQL connection string. If set, the app uses PostgreSQL instead of SQLite. |
+| `ADMIN_PASSWORD` | **Yes** | *(random, printed once)* | Password for the `admin` account; it's reset to this value on every start. |
+| `ADMIN_USERNAME` | No | `admin` | Name of the admin account. |
+| `TRACKER_DB` | No | `tracker.db` | SQLite file, used only when `DATABASE_URL` is empty. |
+| `COOKIE_SECURE` | No | `false` | `true` = the session cookie is only sent over HTTPS. Set it on any HTTPS deployment. |
+| `PORT` | No | `8000` | Port the Docker image listens on (Render sets this). |
+| `DB_POOL_SIZE` | No | `5` | Max open PostgreSQL connections. |
+
+To run locally against PostgreSQL (for example your Neon database), set `DATABASE_URL` in your shell first:
+`$env:DATABASE_URL = "postgresql://..."` (macOS/Linux: `export DATABASE_URL=...`), then `python run.py`.
+`docker compose` always uses its own SQLite volume.
+
+## Deploy (Render + Neon)
+
+The app runs on a free [Render](https://render.com) web service, built from the `Dockerfile`, and stores its data
+in a free [Neon](https://neon.tech) PostgreSQL database. Render's free disk is wiped on every restart, so the data
+has to live outside it.
+
+**One-time setup**
+
+1. **Neon:** create a project in region **AWS Europe Central 1 (Frankfurt)**. From **Connect**, copy the
+   pooled connection string. That's `DATABASE_URL`; keep it secret.
+2. **Render:** sign in with GitHub, choose **New > Blueprint** and pick this repository. Render reads
+   [`render.yaml`](render.yaml) (free plan, Frankfurt, Docker, health check on `/login`).
+3. When Render asks for the values marked `sync: false`, paste the Neon string into `DATABASE_URL` and choose
+   an `ADMIN_PASSWORD`. They're stored only in Render (**Dashboard > qa-task-tracker > Environment**).
+4. Render builds the image and deploys it to `https://<service-name>.onrender.com`. On first start the app
+   creates its tables in Neon.
+
+**After that,** every push to `main` is deployed automatically once the GitHub Actions tests pass
+(`autoDeployTrigger: checksPass`).
+
+**Free-tier behaviour:** the service sleeps after 15 minutes without traffic, so the first request after a pause
+takes about a minute. Neon also sleeps when idle and wakes up in under a second. Data is kept either way.
+
+**Changing a secret:** edit it under **Environment** in Render and save; Render restarts the app with the new value.
+If the Neon password ever leaks, reset it in Neon (**Roles**) and update `DATABASE_URL` in Render.
+
 ## API
 
 Every endpoint except signup/login needs `Authorization: Bearer <token>`.
@@ -103,6 +150,8 @@ Statuses: `To Do`, `In Progress`, `In Review`, `Done`.
 
 API tests (`tests/api/`) use pytest + requests; UI tests (`tests/ui/`) use Playwright to drive a real Chromium browser.
 Each run starts its own copy of the app with an empty temporary database, so your `tracker.db` is never touched.
+The tests ignore `DATABASE_URL`, so they can't reach your production database by accident. To run them on
+PostgreSQL, point `TEST_DATABASE_URL` at a throwaway database (CI does this with a temporary PostgreSQL server).
 
 ```powershell
 pip install -r requirements-dev.txt
