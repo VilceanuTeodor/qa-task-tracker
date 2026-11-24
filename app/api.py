@@ -4,7 +4,7 @@ Log in with POST /api/auth/login, then send the token as `Authorization: Bearer 
 """
 from fastapi import APIRouter, Depends, HTTPException, Response
 
-from app import tasks, users
+from app import debug, tasks, users
 from app.auth import api_admin, api_token, api_user
 from app.errors import ValidationError
 from app.schemas import (
@@ -129,6 +129,12 @@ def admin_set_role(user_id: int, payload: RoleUpdate, admin=Depends(api_admin)):
 def admin_delete_user(user_id: int, admin=Depends(api_admin)):
     _run(users.delete_user, user_id, admin["id"])
     return Response(status_code=204)
+
+
+@admin_router.get("/debug/sentry-error", summary="Trigger a test error (checks Sentry)")
+def debug_sentry_error():
+    """Crashes on purpose with a ZeroDivisionError, so you can follow it in Sentry. Admin only."""
+    debug.trigger_test_error()
 
 
 @admin_router.get("/stats", response_model=Stats)

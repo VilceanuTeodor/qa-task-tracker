@@ -39,6 +39,8 @@ def base_url(tmp_path_factory):
         # Never test against a DATABASE_URL left in the shell (it could be production).
         # Only TEST_DATABASE_URL, set on purpose, runs the tests on PostgreSQL.
         "DATABASE_URL": os.environ.get("TEST_DATABASE_URL", ""),
+        # Test errors (some tests crash the app on purpose) must never reach Sentry.
+        "SENTRY_DSN": "",
     }
     log_path = tmp / "server.log"
     with open(log_path, "w") as log:

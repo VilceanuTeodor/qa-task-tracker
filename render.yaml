@@ -17,3 +17,5 @@ services:
         sync: false
       - key: COOKIE_SECURE     # session cookie only over HTTPS (not a secret)
         value: "true"
+      - key: SENTRY_DSN        # where to send errors (Sentry > Project Settings > Client Keys)
+        sync: false
